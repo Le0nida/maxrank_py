@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# TODO Implement Rtree to optimize these operations (BBS for sky)
 def getdominators(data, p):
     dominators = []
     for r in data:
@@ -49,4 +50,3 @@ def getskyline(data):
             window.append(pnt)
 
     return window
-

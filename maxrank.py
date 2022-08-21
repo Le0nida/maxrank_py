@@ -15,6 +15,7 @@ class Cell:
         pass
 
 
+# TODO Implement smarter generation using shifts and bottom-up construction
 def genhammingstrings(strlen, weight):
     def advance_counter(pos):
         counter[pos] += 1
@@ -46,13 +47,14 @@ def genhammingstrings(strlen, weight):
         return hamstr
 
 
+# TODO Convert from MonteCarlo to Linear Programming
 def searchmincells(mbr, hamstrings, halfspaces):
     cells = []
 
     if len(halfspaces) == 0:
         cell = Cell()
         cell.mask = []
-        # TODO put quadrant mbr as halfspaces
+        # TODO Put quadrant mbr as halfspaces
         cells.append(cell)
         return cells
 
@@ -159,7 +161,9 @@ def aa_hd(data, p):
                 break
 
             hamweight = 0
-            while hamweight <= len(leaf.halfspaces) and leaf.order + hamweight <= minorder and leaf.order + hamweight <= minorder_singular:
+            while hamweight <= len(leaf.halfspaces) \
+                    and leaf.order + hamweight <= minorder \
+                    and leaf.order + hamweight <= minorder_singular:
                 if hamweight >= 2:
                     print("> Evaluating Hamming strings of weight {}".format(hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
