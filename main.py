@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from maxrank import ba_hd
+from maxrank import ba_hd, aa_hd
 from geom import *
 
 print("\n"*25)
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     queries = np.empty(shape=(len(data), 2), dtype=int)
     for i in range(len(data)):
         print("\n#  Processing data point {}  #".format(data[i].id))
-        maxrank, mincells = ba_hd(data, data[i])
+        maxrank, mincells = aa_hd(data, data[i])
         queries[i] = [data[i].id, maxrank]
 
     res = pd.DataFrame(queries, columns=['id', 'maxrank'])

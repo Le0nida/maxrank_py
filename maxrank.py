@@ -8,6 +8,7 @@ from qtree import QTree
 class Cell:
     order = None
     mask = None
+    covered = None
     halfspaces = None
 
     def __init__(self):
@@ -84,7 +85,7 @@ def ba_hd(data, p):
     dominators = query.getdominators(data, p)
     incomp = query.getincomparables(data, p)
 
-    halfspaces = query.genhalfspaces(p, incomp)
+    halfspaces = genhalfspaces(p, incomp)
 
     for hs in halfspaces:
         qt.inserthalfspace(qt.root, hs)
@@ -93,7 +94,6 @@ def ba_hd(data, p):
     leaves = qt.getleaves()
     for leaf in leaves:
         leaf.getorder()
-
     leaves.sort(key=lambda x: x.order)
 
     minorder = np.inf
@@ -104,7 +104,9 @@ def ba_hd(data, p):
             break
 
         hamweight = 0
-        while hamweight <= len(leaf.halfspaces) or leaf.order + hamweight > minorder:
+        while hamweight <= len(leaf.halfspaces) and leaf.order + hamweight <= minorder:
+            if hamweight >= 2:
+                print("> Evaluating Hamming strings of weight {}".format(hamweight))
             hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
             cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
 
@@ -125,4 +127,101 @@ def ba_hd(data, p):
     if niter % 5 == 0:
         print("> {} leaves have been processed...".format(niter))
 
-    return minorder + len(dominators), mincells
+    return len(dominators) + minorder + 1, mincells
+
+
+def aa_hd(data, p):
+    qt = QTree(p.dims - 1, 10)
+
+    dominators = query.getdominators(data, p)
+    incomp = query.getincomparables(data, p)
+
+    sky = query.getskyline(incomp)
+    halfspaces = genhalfspaces(p, sky)
+
+    for hs in halfspaces:
+        qt.inserthalfspace(qt.root, hs)
+    print("> {} halfspaces have been inserted".format(len(halfspaces)))
+
+    leaves = qt.getleaves()
+    for leaf in leaves:
+        leaf.getorder()
+    leaves.sort(key=lambda x: x.order)
+
+    minorder_singular = np.inf
+    mincells_singular = []
+
+    while True:
+        minorder = np.inf
+        mincells = []
+        for leaf in leaves:
+            if leaf.order > minorder or leaf.order > minorder_singular:
+                break
+
+            hamweight = 0
+            while hamweight <= len(leaf.halfspaces) and leaf.order + hamweight <= minorder and leaf.order + hamweight <= minorder_singular:
+                if hamweight >= 2:
+                    print("> Evaluating Hamming strings of weight {}".format(hamweight))
+                hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
+                cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
+
+                if len(cells) > 0:
+                    leaf_covered = []
+                    ref = leaf.parent
+                    while not ref.isroot():
+                        leaf_covered = leaf_covered + ref.covered
+                        ref = ref.parent
+
+                    for cell in cells:
+                        cell.order = leaf.order + hamweight
+
+                        cell.covered = []
+                        for b in range(len(cell.mask)):
+                            if cell.mask[b] == 1:
+                                cell.covered.append(cell.halfspaces[b])
+                        cell.covered = cell.covered + leaf_covered
+
+                    if minorder > leaf.order + hamweight:
+                        minorder = leaf.order + hamweight
+                        mincells = cells
+                    else:
+                        mincells = mincells + cells
+                    break
+
+                hamweight += 1
+
+        to_expand = []
+        for cell in mincells:
+            singular = True
+            for hs in cell.covered:
+                if not hs.arr == Arrangement.SINGULAR:
+                    singular = False
+                    if hs not in to_expand:
+                        to_expand.append(hs)
+            if singular:
+                minorder_singular = cell.order
+                mincells_singular.append(cell)
+
+        if len(to_expand) == 0:
+            break
+        else:
+            for hs in to_expand:
+                hs.arr = Arrangement.SINGULAR
+                incomp.remove(hs.pnt)
+
+            new_sky = query.getskyline(incomp)
+            new_halfspaces = genhalfspaces(p, [pnt for pnt in new_sky if pnt not in sky])
+
+            for hs in new_halfspaces:
+                qt.inserthalfspace(qt.root, hs)
+            if len(new_halfspaces) > 0:
+                print("> {} new halfspaces have been inserted".format(len(new_halfspaces)))
+
+            sky = new_sky
+
+            leaves = qt.getleaves()
+            for leaf in leaves:
+                leaf.getorder()
+            leaves.sort(key=lambda x: x.order)
+
+    return len(dominators) + minorder_singular + 1, mincells_singular
