@@ -1,7 +1,5 @@
 import numpy as np
 
-from geom import HalfSpace
-
 
 def getdominators(data, p):
     dominators = []
@@ -30,15 +28,25 @@ def getincomparables(data, p):
     return incomp
 
 
-def genhalfspaces(p, records):
-    halfspaces = []
-    p_d = p.coord[-1]
-    p_i = p.coord[:-1]
+def getskyline(data):
+    def dominates(p, r):
+        return np.all(p.coord <= r.coord) and np.any(p.coord < r.coord)
 
-    for r in records:
-        r_d = r.coord[-1]
-        r_i = r.coord[:-1]
+    window = []
 
-        halfspaces.append(HalfSpace(r.id, r_i - r_d - p_i + p_d, p_d - r_d))
+    for pnt in data:
+        dominated = False
+        for w_pnt in window:
+            if dominates(w_pnt, pnt):
+                dominated = True
+                break
 
-    return halfspaces
+        if not dominated:
+            for w_pnt in reversed(window):
+                if dominates(pnt, w_pnt):
+                    window.remove(w_pnt)
+
+            window.append(pnt)
+
+    return window
+
