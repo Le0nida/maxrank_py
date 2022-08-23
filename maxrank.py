@@ -15,36 +15,33 @@ class Cell:
         pass
 
 
-# TODO Implement smarter generation using shifts and bottom-up construction
 def genhammingstrings(strlen, weight):
-    def advance_counter(pos):
-        counter[pos] += 1
-        if counter[pos] > strlen + pos - weight and pos > 0:
-            counter[pos] = advance_counter(pos - 1) + 1
-            return counter[pos]
-        else:
-            return counter[pos]
-
     if weight == 0:
-        return np.zeros(strlen).reshape(1, strlen)
-    if weight == 1:
-        return np.eye(strlen)
+        return [np.binary_repr(0, width=strlen)]
+    elif weight == 1:
+        decstr = [2 ** b for b in range(strlen)]
+        return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
     else:
-        counter = np.arange(weight)
+        halfmax = 2 ** (strlen - 1) - 1
+        curr_weight = 2
 
-        hamstr = np.zeros((1, strlen))
-        for c in counter:
-            hamstr[0, c] = 1
-        advance_counter(weight - 1)
+        decstr = [2 ** b + 1 for b in range(1, strlen)]
+        bases = [decstr[i] for i in range(len(decstr)) if decstr[i] <= halfmax]
 
-        while counter[0] <= strlen - weight:
-            newstr = np.zeros((1, strlen))
-            for c in counter:
-                newstr[0, c] = 1
-            hamstr = np.append(hamstr, newstr, axis=0)
+        while True:
+            while len(bases) > 0:
+                shifts = np.left_shift(bases, 1)
+                decstr = decstr + list(shifts)
+                bases = [shifts[i] for i in range(len(shifts)) if shifts[i] <= halfmax]
 
-            advance_counter(weight - 1)
-        return hamstr
+            if curr_weight < weight:
+                decstr = [2 * decstr[i] + 1 for i in range(len(decstr)) if 2 * decstr[i] + 1 <= 2 ** strlen - 1]
+                bases = [decstr[i] for i in range(len(decstr)) if decstr[i] <= halfmax]
+                curr_weight += 1
+            else:
+                break
+
+        return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
 
 
 # TODO Convert from MonteCarlo to Linear Programming
@@ -67,7 +64,7 @@ def searchmincells(mbr, hamstrings, halfspaces):
                     break
 
             for b in range(len(hamstr)):
-                if hamstr[b] == 0:
+                if hamstr[b] == '0':
                     if not find_pointhalfspace_position(point, halfspaces[b]) == Position.BELOW:
                         found = False
                         break
