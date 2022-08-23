@@ -22,11 +22,12 @@ class QTree:
         # The number of quadrants is dependant by the dimensionality
         for quad in range(2 ** self.dims):
             # Convert the quadrant number in binary
-            rbin = to_rbinstring(quad, self.dims)
+            qbin = np.binary_repr(quad, width=self.dims)
 
             # Compute new mbr
-            child_mindim = [mindim[d] if rbin[d] == 0 else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
-            child_maxdim = [maxdim[d] if rbin[d] == 1 else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
+            child_mindim = [mindim[d] if qbin[d] == '0' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
+            child_maxdim = [maxdim[d] if qbin[d] == '1' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
+
             child = QNode(node, np.column_stack((child_mindim, child_maxdim)))
 
             # Insert parent halfspaces in child
@@ -45,8 +46,8 @@ class QTree:
         n_on = 0
         # Get corner points of the quadrant
         for corner in range(2 ** self.dims):
-            rbin = to_rbinstring(corner, self.dims)
-            corner_pnt = Point(None, np.array([mindim[d] if rbin[d] == 0 else maxdim[d] for d in range(self.dims)]))
+            cbin = np.binary_repr(corner, width=self.dims)
+            corner_pnt = Point(None, np.array([mindim[d] if cbin[d] == '0' else maxdim[d] for d in range(self.dims)]))
 
             # Find the postion of the corner w.r.t the halfspace
             rec_position = find_pointhalfspace_position(corner_pnt, halfspace)
@@ -112,12 +113,3 @@ class QNode:
 
         self.order = order
         return order
-
-
-def to_rbinstring(n, dim):
-    rbin = []
-    while n > 0 or len(rbin) < dim:
-        rbin.append(n % 2)
-        n = int(n / 2)
-
-    return rbin
