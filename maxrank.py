@@ -1,4 +1,3 @@
-import math
 import numpy as np
 
 import query
@@ -51,13 +50,14 @@ def genhammingstrings(strlen, weight):
 # TODO Convert from MonteCarlo to Linear Programming
 def searchmincells(leaf, hamstrings):
     cells = []
+    leaf_covered = leaf.getcovered()
 
     # If there are no halfspaces, then the whole leaf is the mincell
     if len(leaf.halfspaces) == 0:
         return [Cell(
             None,
             None,
-            leaf.covered,
+            leaf_covered,
             [],
             leaf.mbr,
             Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
@@ -85,12 +85,12 @@ def searchmincells(leaf, hamstrings):
                         found = False
                         break
 
-            # If the points respects all equations, that means the relative mincell exists
+            # If the point respects all equations, that means the relative mincell exists
             if found:
                 cell = Cell(
                     None,
                     hamstr,
-                    leaf.covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
+                    leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                     leaf.halfspaces,
                     leaf.mbr,
                     point
@@ -120,7 +120,6 @@ def ba_hd(data, p):
 
     minorder = np.inf
     mincells = []
-    niter = 0
     for leaf in leaves:
         if leaf.order > minorder:
             break
@@ -219,7 +218,7 @@ def aa_hd(data, p):
             if cell.issingular():
                 minorder_singular = cell.order
                 mincells_singular.append(cell)
-                print("> Expansion {}: Found a singular mincell(s) with a minorder of {}".format(n_exp, minorder_singular))
+                print("> Expansion {}: Found a singular mincell with a minorder of {}".format(n_exp, minorder_singular))
             else:
                 to_expand += [hs for hs in cell.covered if hs.arr == Arrangement.AUGMENTED and hs not in to_expand]
 

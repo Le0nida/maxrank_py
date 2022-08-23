@@ -107,20 +107,21 @@ class QNode:
         return len(self.children) == 0
 
     def getorder(self):
-        if self.order is not None:
-            return self.order
-        else:
-            self.order = len(self.covered)
-            ref = self.parent
+        self.order = len(self.covered)
+        ref = self.parent
 
-            while not ref.isroot():
-                if ref.order is not None:
-                    self.order += ref.order
-                    self.covered += ref.covered
-                    break
-                else:
-                    self.order += len(ref.covered)
-                    self.covered += ref.covered
-                    ref = ref.parent
+        while not ref.isroot():
+            self.order += len(ref.covered)
+            ref = ref.parent
 
-            return self.order
+        return self.order
+
+    def getcovered(self):
+        covered = self.covered.copy()
+        ref = self.parent
+
+        while not ref.isroot():
+            covered += ref.covered
+            ref = ref.parent
+
+        return covered
