@@ -7,14 +7,16 @@ from qtree import QTree
 
 
 class Cell:
-    order = None
-    mask = None
-    covered = None
-    halfspaces = None
-    feasible_pnt = None
+    def __init__(self, order, mask, covered, halfspaces, leaf_mbr, feasible_pnt):
+        self.order = order
+        self.mask = mask
+        self.covered = covered
+        self.halfspaces = halfspaces
+        self.leaf_mbr = leaf_mbr
+        self.feasible_pnt = feasible_pnt
 
-    def __init__(self):
-        pass
+    def issingular(self):
+        return all([hs.arr == Arrangement.SINGULAR for hs in self.covered])
 
 
 def genhammingstrings(strlen, weight):
@@ -47,40 +49,55 @@ def genhammingstrings(strlen, weight):
 
 
 # TODO Convert from MonteCarlo to Linear Programming
-def searchmincells(mbr, hamstrings, halfspaces):
+def searchmincells(leaf, hamstrings):
     cells = []
 
-    if len(halfspaces) == 0:
-        cell = Cell()
-        cell.mask = []
-        # TODO Put quadrant mbr as halfspaces
-        cells.append(cell)
-        return cells
+    # If there are no halfspaces, then the whole leaf is the mincell
+    if len(leaf.halfspaces) == 0:
+        return [Cell(
+            None,
+            None,
+            leaf.covered,
+            [],
+            leaf.mbr,
+            Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
+        )]
 
     for hamstr in hamstrings:
+        # MonteCarlo -> If we cen't generate a feasible point in 5000 iterations, "probably" the cell does not exist
         for i in range(5000):
             found = True
             while True:
-                point = Point(None, np.random.uniform(low=mbr[:, 0], high=mbr[:, 1], size=halfspaces[0].dims))
+                point = Point(None,
+                              np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
+                # Only generate query points that are normalized
                 if sum(point.coord) <= 1:
                     break
 
+            # Check if the point falls in the halfspaces arrangment dictated by the hamming string
             for b in range(len(hamstr)):
                 if hamstr[b] == '0':
-                    if not find_pointhalfspace_position(point, halfspaces[b]) == Position.BELOW:
+                    if not find_pointhalfspace_position(point, leaf.halfspaces[b]) == Position.BELOW:
                         found = False
                         break
                 else:
-                    if not find_pointhalfspace_position(point, halfspaces[b]) == Position.ABOVE:
+                    if not find_pointhalfspace_position(point, leaf.halfspaces[b]) == Position.ABOVE:
                         found = False
                         break
+
+            # If the points respects all equations, that means the relative mincell exists
             if found:
-                cell = Cell()
-                cell.mask = hamstr
-                cell.halfspaces = halfspaces
-                cell.feasible_pnt = point
+                cell = Cell(
+                    None,
+                    hamstr,
+                    leaf.covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
+                    leaf.halfspaces,
+                    leaf.mbr,
+                    point
+                )
                 cells.append(cell)
                 break
+
     return cells
 
 
@@ -113,7 +130,7 @@ def ba_hd(data, p):
             if hamweight >= 2:
                 print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
             hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
-            cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
+            cells = searchmincells(leaf, hamstrings)
 
             if len(cells) > 0:
                 for cell in cells:
@@ -134,58 +151,57 @@ def ba_hd(data, p):
 
 
 def aa_hd(data, p):
+    # Computes skyline of incomparables, insert their halfspaces in the QTree and retrieves the leaves
+    def updateqt(old_sky):
+        new_sky = query.getskyline(incomp)
+        new_halfspaces = genhalfspaces(p, [pnt for pnt in new_sky if pnt not in old_sky])
+
+        for hs in new_halfspaces:
+            qt.inserthalfspace(qt.root, hs)
+        if len(new_halfspaces) > 0:
+            print("> {} halfspace(s) have been inserted".format(len(new_halfspaces)))
+
+        new_leaves = qt.getleaves()
+        for _leaf in new_leaves:
+            _leaf.getorder()
+        new_leaves.sort(key=lambda x: x.order)
+
+        return new_sky, new_leaves
+
+    # Initialize the QTree
     qt = QTree(p.dims - 1, 10)
 
+    # Compute dominators and incomparables
     dominators = query.getdominators(data, p)
     incomp = query.getincomparables(data, p)
 
-    sky = query.getskyline(incomp)
-    halfspaces = genhalfspaces(p, sky)
-
-    for hs in halfspaces:
-        qt.inserthalfspace(qt.root, hs)
-    print("> {} halfspaces have been inserted".format(len(halfspaces)))
-
-    leaves = qt.getleaves()
-    for leaf in leaves:
-        leaf.getorder()
-    leaves.sort(key=lambda x: x.order)
+    sky, leaves = updateqt([])
 
     minorder_singular = np.inf
     mincells_singular = []
     n_exp = 0
 
+    # Start AA routine
     while True:
         minorder = np.inf
         mincells = []
+
+        # Find mincells with current halfspaces, like in BA
         for leaf in leaves:
             if leaf.order > minorder or leaf.order > minorder_singular:
                 break
 
             hamweight = 0
-            while hamweight <= len(leaf.halfspaces) \
-                    and leaf.order + hamweight <= minorder \
-                    and leaf.order + hamweight <= minorder_singular:
+            while hamweight <= len(
+                    leaf.halfspaces) and leaf.order + hamweight <= minorder and leaf.order + hamweight <= minorder_singular:
                 if hamweight >= 2:
                     print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
-                cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
+                cells = searchmincells(leaf, hamstrings)
 
                 if len(cells) > 0:
-                    leaf_covered = []
-                    ref = leaf.parent
-                    while not ref.isroot():
-                        leaf_covered = leaf_covered + ref.covered
-                        ref = ref.parent
-
                     for cell in cells:
                         cell.order = leaf.order + hamweight
-
-                        cell.covered = []
-                        for b in range(len(cell.mask)):
-                            if cell.mask[b] == 1:
-                                cell.covered.append(cell.halfspaces[b])
-                        cell.covered = cell.covered + leaf_covered
 
                     if minorder > leaf.order + hamweight:
                         minorder = leaf.order + hamweight
@@ -195,45 +211,30 @@ def aa_hd(data, p):
                     break
 
                 hamweight += 1
-
         print("> Expansion {}: Found {} mincell(s)".format(n_exp, len(mincells)))
 
+        # Check all mincells found for singulars; if they aren't put their halfspaces up for expansion
         to_expand = []
         for cell in mincells:
-            singular = True
-            for hs in cell.covered:
-                if not hs.arr == Arrangement.SINGULAR:
-                    singular = False
-                    if hs not in to_expand:
-                        to_expand.append(hs)
-            if singular:
+            if cell.issingular():
                 minorder_singular = cell.order
                 mincells_singular.append(cell)
                 print("> Expansion {}: Found a singular mincell(s) with a minorder of {}".format(n_exp, minorder_singular))
+            else:
+                to_expand += [hs for hs in cell.covered if hs.arr == Arrangement.AUGMENTED and hs not in to_expand]
 
+        # If there aren't any new halfspaces to expand then the search is terminated
         if len(to_expand) == 0:
             break
         else:
+            # Otherwise, remove the correspondent incomparables and update the QTree
+            n_exp += 1
+
             print("> Expansion {}: {} halfspace(s) will be expanded".format(n_exp, len(to_expand)))
             for hs in to_expand:
                 hs.arr = Arrangement.SINGULAR
                 incomp.remove(hs.pnt)
 
-            new_sky = query.getskyline(incomp)
-            new_halfspaces = genhalfspaces(p, [pnt for pnt in new_sky if pnt not in sky])
-
-            for hs in new_halfspaces:
-                qt.inserthalfspace(qt.root, hs)
-            if len(new_halfspaces) > 0:
-                print("> {} new halfspace(s) have been inserted".format(len(new_halfspaces)))
-
-            sky = new_sky
-
-            leaves = qt.getleaves()
-            for leaf in leaves:
-                leaf.getorder()
-            leaves.sort(key=lambda x: x.order)
-
-            n_exp += 1
+            sky, leaves = updateqt(sky)
 
     return len(dominators) + minorder_singular + 1, mincells_singular
