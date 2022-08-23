@@ -1,3 +1,4 @@
+import math
 import numpy as np
 
 import query
@@ -10,6 +11,7 @@ class Cell:
     mask = None
     covered = None
     halfspaces = None
+    feasible_pnt = None
 
     def __init__(self):
         pass
@@ -76,6 +78,7 @@ def searchmincells(mbr, hamstrings, halfspaces):
                 cell = Cell()
                 cell.mask = hamstr
                 cell.halfspaces = halfspaces
+                cell.feasible_pnt = point
                 cells.append(cell)
                 break
     return cells
@@ -108,7 +111,7 @@ def ba_hd(data, p):
         hamweight = 0
         while hamweight <= len(leaf.halfspaces) and leaf.order + hamweight <= minorder:
             if hamweight >= 2:
-                print("> Evaluating Hamming strings of weight {}".format(hamweight))
+                print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
             hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
             cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
 
@@ -119,15 +122,13 @@ def ba_hd(data, p):
                 if minorder > leaf.order + hamweight:
                     minorder = leaf.order + hamweight
                     mincells = cells
+                    print("> Leaf {}: Found {} mincell(s) with a minorder of {}".format(id(leaf), len(mincells), minorder))
                 else:
                     mincells = mincells + cells
+                    print("> Leaf {}: Found another {} mincell(s)".format(id(leaf), len(cells)))
                 break
 
             hamweight += 1
-
-    niter += 1
-    if niter % 5 == 0:
-        print("> {} leaves have been processed...".format(niter))
 
     return len(dominators) + minorder + 1, mincells
 
@@ -152,6 +153,7 @@ def aa_hd(data, p):
 
     minorder_singular = np.inf
     mincells_singular = []
+    n_exp = 0
 
     while True:
         minorder = np.inf
@@ -165,7 +167,7 @@ def aa_hd(data, p):
                     and leaf.order + hamweight <= minorder \
                     and leaf.order + hamweight <= minorder_singular:
                 if hamweight >= 2:
-                    print("> Evaluating Hamming strings of weight {}".format(hamweight))
+                    print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
                 cells = searchmincells(leaf.mbr, hamstrings, leaf.halfspaces)
 
@@ -194,6 +196,8 @@ def aa_hd(data, p):
 
                 hamweight += 1
 
+        print("> Expansion {}: Found {} mincell(s)".format(n_exp, len(mincells)))
+
         to_expand = []
         for cell in mincells:
             singular = True
@@ -205,10 +209,12 @@ def aa_hd(data, p):
             if singular:
                 minorder_singular = cell.order
                 mincells_singular.append(cell)
+                print("> Expansion {}: Found a singular mincell(s) with a minorder of {}".format(n_exp, minorder_singular))
 
         if len(to_expand) == 0:
             break
         else:
+            print("> Expansion {}: {} halfspace(s) will be expanded".format(n_exp, len(to_expand)))
             for hs in to_expand:
                 hs.arr = Arrangement.SINGULAR
                 incomp.remove(hs.pnt)
@@ -219,7 +225,7 @@ def aa_hd(data, p):
             for hs in new_halfspaces:
                 qt.inserthalfspace(qt.root, hs)
             if len(new_halfspaces) > 0:
-                print("> {} new halfspaces have been inserted".format(len(new_halfspaces)))
+                print("> {} new halfspace(s) have been inserted".format(len(new_halfspaces)))
 
             sky = new_sky
 
@@ -227,5 +233,7 @@ def aa_hd(data, p):
             for leaf in leaves:
                 leaf.getorder()
             leaves.sort(key=lambda x: x.order)
+
+            n_exp += 1
 
     return len(dominators) + minorder_singular + 1, mincells_singular
