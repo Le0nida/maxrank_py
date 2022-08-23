@@ -27,6 +27,9 @@ class QTree:
             # Compute new mbr
             child_mindim = [mindim[d] if qbin[d] == '0' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
             child_maxdim = [maxdim[d] if qbin[d] == '1' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
+            # Do not build nodes laying above the q1 + q2 + ... + qd = 1 halfspace
+            if sum(child_mindim) >= 1:
+                continue
 
             child = QNode(node, np.column_stack((child_mindim, child_maxdim)))
 

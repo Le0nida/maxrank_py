@@ -61,7 +61,10 @@ def searchmincells(mbr, hamstrings, halfspaces):
     for hamstr in hamstrings:
         for i in range(5000):
             found = True
-            point = Point(None, np.random.uniform(low=mbr[:, 0], high=mbr[:, 1], size=halfspaces[0].dims))
+            while True:
+                point = Point(None, np.random.uniform(low=mbr[:, 0], high=mbr[:, 1], size=halfspaces[0].dims))
+                if sum(point.coord) <= 1:
+                    break
 
             for b in range(len(hamstr)):
                 if hamstr[b] == 0:
