@@ -50,3 +50,12 @@ def getskyline(data):
             window.append(pnt)
 
     return window
+
+
+def findknn(k, data, p):
+    if data.shape[0] <= k + 1:
+        return np.arange(1, data.shape[0])
+    else:
+        distances = np.linalg.norm(p - data, axis=1)
+
+        return distances.argsort()[1:k + 1]

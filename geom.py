@@ -37,6 +37,8 @@ def genhalfspaces(p, records):
         r_d = r.coord[-1]
         r_i = r.coord[:-1]
 
+        # less-than form
+        # s(r) <= s(p)
         halfspaces.append(HalfSpace(r, r_i - r_d - p_i + p_d, p_d - r_d))
 
     return halfspaces

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import linprog
 
 import query
 from geom import *
@@ -64,7 +65,7 @@ def searchmincells(leaf, hamstrings):
         )]
 
     for hamstr in hamstrings:
-        # MonteCarlo -> If we cen't generate a feasible point in 5000 iterations, "probably" the cell does not exist
+        # MonteCarlo -> If we can't generate a feasible point in 5000 iterations, "probably" the cell does not exist
         for i in range(5000):
             found = True
             while True:
@@ -101,6 +102,60 @@ def searchmincells(leaf, hamstrings):
     return cells
 
 
+def searchmincells_lp(leaf, hamstrings):
+    cells = []
+    dims = leaf.mbr.shape[0]
+    leaf_covered = leaf.getcovered()
+
+    # If there are no halfspaces, then the whole leaf is the mincell
+    if len(leaf.halfspaces) == 0:
+        return [Cell(
+            None,
+            None,
+            leaf_covered,
+            [],
+            leaf.mbr,
+            Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
+        )]
+
+    c = np.zeros(dims + 2)
+    c[-1] = -1
+
+    A_ub = np.ones((len(leaf.halfspaces) + 1, dims + 2))
+    A_ub[-1, -1] = 0
+    A_ub[-1, -2] = -1
+
+    b_ub = np.zeros(len(leaf.halfspaces) + 1)
+    #b_ub[-1] = 1
+
+    bounds = [(leaf.mbr[d, 0], leaf.mbr[d, 1]) for d in range(dims)]
+    bounds += [(0, None), (0, None)]
+
+    for hamstr in hamstrings:
+        for b in range(len(hamstr)):
+            if hamstr[b] == '0':
+                A_ub[b, :-1] = np.append(-leaf.halfspaces[b].coeff, leaf.halfspaces[b].known)
+            else:
+                A_ub[b, :-1] = np.append(leaf.halfspaces[b].coeff, -leaf.halfspaces[b].known)
+
+        fp = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method='highs')
+
+        # If the point respects all equations, that means the relative mincell exists
+        if fp.success:
+            cell = Cell(
+                None,
+                hamstr,
+                leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
+                leaf.halfspaces,
+                leaf.mbr,
+                Point(None, fp.x[:-2] / fp.x[-2])
+            )
+            cells.append(cell)
+            break
+
+    return cells
+
+
 def ba_hd(data, p):
     qt = QTree(p.dims - 1, 10)
 
@@ -129,7 +184,7 @@ def ba_hd(data, p):
             if hamweight >= 2:
                 print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
             hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
-            cells = searchmincells(leaf, hamstrings)
+            cells = searchmincells_lp(leaf, hamstrings)
 
             if len(cells) > 0:
                 for cell in cells:
@@ -138,7 +193,8 @@ def ba_hd(data, p):
                 if minorder > leaf.order + hamweight:
                     minorder = leaf.order + hamweight
                     mincells = cells
-                    print("> Leaf {}: Found {} mincell(s) with a minorder of {}".format(id(leaf), len(mincells), minorder))
+                    print("> Leaf {}: Found {} mincell(s) with a minorder of {}".format(id(leaf), len(mincells),
+                                                                                        minorder))
                 else:
                     mincells = mincells + cells
                     print("> Leaf {}: Found another {} mincell(s)".format(id(leaf), len(cells)))
@@ -196,7 +252,7 @@ def aa_hd(data, p):
                 if hamweight >= 2:
                     print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
-                cells = searchmincells(leaf, hamstrings)
+                cells = searchmincells_lp(leaf, hamstrings)
 
                 if len(cells) > 0:
                     for cell in cells:
@@ -213,14 +269,18 @@ def aa_hd(data, p):
         print("> Expansion {}: Found {} mincell(s)".format(n_exp, len(mincells)))
 
         # Check all mincells found for singulars; if they aren't put their halfspaces up for expansion
+        new_singulars = 0
         to_expand = []
         for cell in mincells:
             if cell.issingular():
                 minorder_singular = cell.order
                 mincells_singular.append(cell)
-                print("> Expansion {}: Found a singular mincell with a minorder of {}".format(n_exp, minorder_singular))
+                new_singulars += 1
             else:
                 to_expand += [hs for hs in cell.covered if hs.arr == Arrangement.AUGMENTED and hs not in to_expand]
+        if new_singulars > 0:
+            print("> Expansion {}: Found {} singular mincell(s) with a minorder of {}".format(n_exp, new_singulars,
+                                                                                              minorder_singular))
 
         # If there aren't any new halfspaces to expand then the search is terminated
         if len(to_expand) == 0:
