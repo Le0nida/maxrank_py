@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from rtree import RTree
 from geom import *
 from maxrank import aa_hd, ba_hd
 
@@ -16,10 +17,12 @@ if __name__ == "__main__":
 
         data.append(Point(record.name, record.to_numpy()))
 
+    # rt = RTree(df, maxpntnode=5)
+
     queries = np.empty(shape=(len(data), 2), dtype=int)
     for i in range(len(data)):
         print("#  Processing data point {}  #".format(data[i].id))
-        maxrank, mincells = ba_hd(data, data[i])
+        maxrank, mincells = aa_hd(data, data[i])
         print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
         queries[i] = [data[i].id, maxrank]
 
