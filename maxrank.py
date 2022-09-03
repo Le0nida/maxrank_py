@@ -118,25 +118,25 @@ def searchmincells_lp(leaf, hamstrings):
             Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
         )]
 
-    c = np.zeros(dims + 2)
+    c = np.zeros(dims + 1)
     c[-1] = -1
 
-    A_ub = np.ones((len(leaf.halfspaces) + 1, dims + 2))
+    A_ub = np.ones((len(leaf.halfspaces) + 1, dims + 1))
     A_ub[-1, -1] = 0
-    A_ub[-1, -2] = -1
 
-    b_ub = np.zeros(len(leaf.halfspaces) + 1)
-    #b_ub[-1] = 1
+    b_ub = np.ones(len(leaf.halfspaces) + 1)
 
     bounds = [(leaf.mbr[d, 0], leaf.mbr[d, 1]) for d in range(dims)]
-    bounds += [(0, None), (0, None)]
+    bounds += [(0, None)]
 
     for hamstr in hamstrings:
         for b in range(len(hamstr)):
             if hamstr[b] == '0':
-                A_ub[b, :-1] = np.append(-leaf.halfspaces[b].coeff, leaf.halfspaces[b].known)
+                A_ub[b, :-1] = -leaf.halfspaces[b].coeff
+                b_ub[b] = -leaf.halfspaces[b].known
             else:
-                A_ub[b, :-1] = np.append(leaf.halfspaces[b].coeff, -leaf.halfspaces[b].known)
+                A_ub[b, :-1] = leaf.halfspaces[b].coeff
+                b_ub[b] = leaf.halfspaces[b].known
 
         fp = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method='highs')
 
@@ -148,7 +148,7 @@ def searchmincells_lp(leaf, hamstrings):
                 leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                 leaf.halfspaces,
                 leaf.mbr,
-                Point(None, fp.x[:-2] / fp.x[-2])
+                Point(None, fp.x[:-1])
             )
             cells.append(cell)
             break
