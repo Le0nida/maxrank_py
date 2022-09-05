@@ -10,7 +10,7 @@ class QTree:
         self.root = self.createroot()
 
     def createroot(self):
-        root = QNode(None, np.column_stack(([0.0 for d in range(self.dims)], [1.0 for d in range(self.dims)])))
+        root = QNode(None, np.column_stack((np.zeros(self.dims), np.ones(self.dims))))
         self.splitnode(root)
 
         return root
@@ -22,11 +22,11 @@ class QTree:
         # The number of quadrants is dependant by the dimensionality
         for quad in range(2 ** self.dims):
             # Convert the quadrant number in binary
-            qbin = np.binary_repr(quad, width=self.dims)
+            qbin = np.array(list(np.binary_repr(quad, width=self.dims)))
 
             # Compute new mbr
-            child_mindim = [mindim[d] if qbin[d] == '0' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
-            child_maxdim = [maxdim[d] if qbin[d] == '1' else (mindim[d] + maxdim[d]) / 2 for d in range(self.dims)]
+            child_mindim = np.where(qbin == '0', mindim, (mindim + maxdim) / 2)
+            child_maxdim = np.where(qbin == '1', maxdim, (mindim + maxdim) / 2)
             # Do not build nodes laying above the q1 + q2 + ... + qd = 1 halfspace
             if sum(child_mindim) >= 1:
                 continue
@@ -49,8 +49,8 @@ class QTree:
         n_on = 0
         # Get corner points of the quadrant
         for corner in range(2 ** self.dims):
-            cbin = np.binary_repr(corner, width=self.dims)
-            corner_pnt = Point(None, np.array([mindim[d] if cbin[d] == '0' else maxdim[d] for d in range(self.dims)]))
+            cbin = np.array(list(np.binary_repr(corner, width=self.dims)))
+            corner_pnt = Point(None, np.where(cbin == '0', mindim, maxdim))
 
             # Find the postion of the corner w.r.t the halfspace
             rec_position = find_pointhalfspace_position(corner_pnt, halfspace)
