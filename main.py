@@ -1,32 +1,50 @@
+import sys
 import numpy as np
 import pandas as pd
 
-from rtree import RTree
 from geom import *
 from maxrank import aa_hd, ba_hd
 
-print("\n"*25)
+print("\n" * 25)
 
 if __name__ == "__main__":
-    df = pd.read_csv("examples/Test3D50/data_42.csv", index_col=0)
-    print("Loaded {} records from examples/Test3D50/data_42.csv\n".format(df.shape[0]))
+    datafile = sys.argv[1]
+    queryfile = sys.argv[2]
+    method = sys.argv[3]
+
+    data_df = pd.read_csv(datafile, index_col=0)
+    query = pd.read_csv(queryfile, index_col=0).index
+    print("Loaded {} records from {}\n".format(data_df.shape[0], datafile))
 
     data = []
-    for i in range(df.shape[0]):
-        record = df.iloc[i]
+    for i in range(data_df.shape[0]):
+        record = data_df.iloc[i]
 
         data.append(Point(record.name, record.to_numpy()))
 
     # rt = RTree(df, maxpntnode=5)
 
-    queries = np.empty(shape=(len(data), 2), dtype=int)
-    for i in range(len(data)):
-        print("#  Processing data point {}  #".format(data[i].id))
-        maxrank, mincells = aa_hd(data, data[i])
-        print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
-        queries[i] = [data[i].id, maxrank]
+    res = []
+    cells = []
 
-    res = pd.DataFrame(queries, columns=['id', 'maxrank'])
+    for q in query:
+        print("#  Processing data point {}  #".format(q))
+        idx = np.where(data_df.index == q)[0][0]
+
+        if method == 'BA':
+            maxrank, mincells = ba_hd(data, data[idx])
+        else:
+            maxrank, mincells = aa_hd(data, data[idx])
+        print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
+
+        res.append([q, maxrank])
+        cells.append([q, list(mincells[0].feasible_pnt.coord) + [1 - sum(mincells[0].feasible_pnt.coord)]])
+
+    cells = pd.DataFrame(cells, columns=['id', 'query_found'])
+    cells.set_index('id', inplace=True)
+    cells.to_csv("./cells.csv")
+
+    res = pd.DataFrame(res, columns=['id', 'maxrank'])
     res.set_index('id', inplace=True)
-    res.to_csv("examples/Test3D50/maxrank.csv")
+    res.to_csv("./maxrank.csv")
     print(res)

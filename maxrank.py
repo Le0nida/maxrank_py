@@ -18,7 +18,7 @@ class Cell:
     def issingular(self):
         return all([hs.arr == Arrangement.SINGULAR for hs in self.covered])
 
-
+# TODO Build upwards to weight = strlen/2 else build downwards
 def genhammingstrings(strlen, weight):
     if weight == 0:
         return [np.binary_repr(0, width=strlen)]
@@ -48,8 +48,7 @@ def genhammingstrings(strlen, weight):
         return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
 
 
-# TODO Convert from MonteCarlo to Linear Programming
-def searchmincells(leaf, hamstrings):
+def searchmincells_mc(leaf, hamstrings):
     cells = []
     leaf_covered = leaf.getcovered()
 
@@ -102,6 +101,21 @@ def searchmincells(leaf, hamstrings):
     return cells
 
 
+"""
+Mincell search algorithm using linear programming
+
+max x_d+1
+s.t.
+    sum(c_ij * x_ij) + x_d+1 <= d_j     for i = 1,...,dims and for j=1,...,len(halfspaces)
+    sum(x_i) <= 1                       for i = 1,...,dims
+    x_i in leaf.mbr[i, :]               for i = 1,...,dims
+    x_d+1 in [0, +inf]
+    
+> The first (set of) constraint(s) define(s) the halfspaces arrangment according to the hamstring
+> The second contraint is the normalization bound: all query parameters must sum to 1
+> The third constraint states that the query must fall into the current leaf mbr
+> Finally the last constraint forces the "slack" to be positive
+"""
 def searchmincells_lp(leaf, hamstrings):
     cells = []
     dims = leaf.mbr.shape[0]
@@ -181,7 +195,7 @@ def ba_hd(data, p):
 
         hamweight = 0
         while hamweight <= len(leaf.halfspaces) and leaf.order + hamweight <= minorder:
-            if hamweight >= 2:
+            if hamweight >= 3:
                 print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
             hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
             cells = searchmincells_lp(leaf, hamstrings)
@@ -249,7 +263,7 @@ def aa_hd(data, p):
             hamweight = 0
             while hamweight <= len(
                     leaf.halfspaces) and leaf.order + hamweight <= minorder and leaf.order + hamweight <= minorder_singular:
-                if hamweight >= 2:
+                if hamweight >= 3:
                     print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
                 cells = searchmincells_lp(leaf, hamstrings)
