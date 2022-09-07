@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class Point:
-    def __init__(self, _id, coord):
+    def __init__(self, coord, _id=None):
         self.id = _id
         self.coord = coord
         self.dims = len(coord)
@@ -28,6 +28,7 @@ class Arrangement(Enum):
     AUGMENTED = 1
 
 
+# TODO Put this as class method
 def genhalfspaces(p, records):
     halfspaces = []
     p_d = p.coord[-1]
@@ -44,8 +45,9 @@ def genhalfspaces(p, records):
     return halfspaces
 
 
+# TODO Put this as class method
 def find_pointhalfspace_position(point, halfspace):
-    val = sum(halfspace.coeff * point.coord)
+    val = halfspace.coeff.dot(point.coord)
 
     # The position is referred to the halfspace with respect to the point
     if val < halfspace.known:

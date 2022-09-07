@@ -20,7 +20,7 @@ if __name__ == "__main__":
     for i in range(data_df.shape[0]):
         record = data_df.iloc[i]
 
-        data.append(Point(record.name, record.to_numpy()))
+        data.append(Point(record.to_numpy(), _id=record.name))
 
     # rt = RTree(df, maxpntnode=5)
 

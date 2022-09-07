@@ -20,7 +20,7 @@ class RTree:
 
             knn = []
             for n in list(argknn):
-                knn += [Point(data.index[n], npdata[n])]
+                knn += [Point(npdata[n], _id=data.index[n])]
 
             # Compute new mbr
             coords = npdata[argknn]

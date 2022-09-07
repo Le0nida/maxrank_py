@@ -50,7 +50,7 @@ class QTree:
         # Get corner points of the quadrant
         for corner in range(2 ** self.dims):
             cbin = np.array(list(np.binary_repr(corner, width=self.dims)))
-            corner_pnt = Point(None, np.where(cbin == '0', mindim, maxdim))
+            corner_pnt = Point(np.where(cbin == '0', mindim, maxdim))
 
             # Find the postion of the corner w.r.t the halfspace
             rec_position = find_pointhalfspace_position(corner_pnt, halfspace)

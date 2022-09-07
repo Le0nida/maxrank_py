@@ -60,7 +60,7 @@ def searchmincells_mc(leaf, hamstrings):
             leaf_covered,
             [],
             leaf.mbr,
-            Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
+            Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
         )]
 
     for hamstr in hamstrings:
@@ -68,8 +68,7 @@ def searchmincells_mc(leaf, hamstrings):
         for i in range(5000):
             found = True
             while True:
-                point = Point(None,
-                              np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
+                point = Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
                 # Only generate query points that are normalized
                 if sum(point.coord) <= 1:
                     break
@@ -101,22 +100,22 @@ def searchmincells_mc(leaf, hamstrings):
     return cells
 
 
-"""
-Mincell search algorithm using linear programming
-
-max x_d+1
-s.t.
-    sum(c_ij * x_ij) + x_d+1 <= d_j     for i = 1,...,dims and for j=1,...,len(halfspaces)
-    sum(x_i) <= 1                       for i = 1,...,dims
-    x_i in leaf.mbr[i, :]               for i = 1,...,dims
-    x_d+1 in [0, +inf]
-    
-> The first (set of) constraint(s) define(s) the halfspaces arrangment according to the hamstring
-> The second contraint is the normalization bound: all query parameters must sum to 1
-> The third constraint states that the query must fall into the current leaf mbr
-> Finally the last constraint forces the "slack" to be positive
-"""
 def searchmincells_lp(leaf, hamstrings):
+    """
+    Mincell search algorithm using linear programming
+
+    max x_d+1
+    s.t.
+        sum(c_ij * x_ij) + x_d+1 <= d_j     for i = 1,...,dims and for j=1,...,len(halfspaces)
+        sum(x_i) <= 1                       for i = 1,...,dims
+        x_i in leaf.mbr[i, :]               for i = 1,...,dims
+        x_d+1 in [0, +inf]
+
+    > The first (set of) constraint(s) define(s) the halfspaces arrangment according to the hamstring
+    > The second contraint is the normalization bound: all query parameters must sum to 1
+    > The third constraint states that the query must fall into the current leaf mbr
+    > Finally the last constraint forces the "slack" to be positive
+    """
     cells = []
     dims = leaf.mbr.shape[0]
     leaf_covered = leaf.getcovered()
@@ -129,7 +128,7 @@ def searchmincells_lp(leaf, hamstrings):
             leaf_covered,
             [],
             leaf.mbr,
-            Point(None, np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
+            Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
         )]
 
     c = np.zeros(dims + 1)
@@ -162,7 +161,7 @@ def searchmincells_lp(leaf, hamstrings):
                 leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                 leaf.halfspaces,
                 leaf.mbr,
-                Point(None, fp.x[:-1])
+                Point(fp.x[:-1])
             )
             cells.append(cell)
             break
@@ -261,8 +260,9 @@ def aa_hd(data, p):
                 break
 
             hamweight = 0
-            while hamweight <= len(
-                    leaf.halfspaces) and leaf.order + hamweight <= minorder and leaf.order + hamweight <= minorder_singular:
+            while hamweight <= len(leaf.halfspaces) \
+                    and leaf.order + hamweight <= minorder \
+                    and leaf.order + hamweight <= minorder_singular:
                 if hamweight >= 3:
                     print("> Leaf {}: Evaluating Hamming strings of weight {}".format(id(leaf), hamweight))
                 hamstrings = genhammingstrings(len(leaf.halfspaces), hamweight)
@@ -293,12 +293,12 @@ def aa_hd(data, p):
             else:
                 to_expand += [hs for hs in cell.covered if hs.arr == Arrangement.AUGMENTED and hs not in to_expand]
         if new_singulars > 0:
-            print("> Expansion {}: Found {} singular mincell(s) with a minorder of {}".format(n_exp, new_singulars,
-                                                                                              minorder_singular))
+            print("> Expansion {}: Found {} singular mincell(s) with a minorder of {}"
+                  .format(n_exp, new_singulars, minorder_singular))
 
         # If there aren't any new halfspaces to expand then the search is terminated
         if len(to_expand) == 0:
-            break
+            return len(dominators) + minorder_singular + 1, mincells_singular
         else:
             # Otherwise, remove the correspondent incomparables and update the QTree
             n_exp += 1
@@ -309,5 +309,3 @@ def aa_hd(data, p):
                 incomp.remove(hs.pnt)
 
             sky, leaves = updateqt(sky)
-
-    return len(dominators) + minorder_singular + 1, mincells_singular
