@@ -1,4 +1,5 @@
 import numpy as np
+from sortedcontainers import SortedList
 from scipy.optimize import linprog
 
 import query
@@ -17,6 +18,20 @@ class Cell:
 
     def issingular(self):
         return all([hs.arr == Arrangement.SINGULAR for hs in self.covered])
+
+
+class Interval:
+    order = None
+    covered = []
+
+    def __init__(self, halfline, _range, coversleft):
+        self.halfline = halfline
+        self.range = _range
+        self.coversleft = coversleft
+
+    def issingular(self):
+        return all([hl.arr == Arrangement.SINGULAR for hl in self.covered])
+
 
 # TODO Build upwards to weight = strlen/2 else build downwards
 def genhammingstrings(strlen, weight):
@@ -216,6 +231,85 @@ def ba_hd(data, p):
             hamweight += 1
 
     return len(dominators) + minorder + 1, mincells
+
+
+# TODO Wrap sortedlist of intevals as object
+def aa_2d(data, p):
+    # Compute dominators and incomparables
+    dominators = query.getdominators(data, p)
+    incomp = query.getincomparables(data, p)
+    sky = query.getskyline(incomp)
+
+    p_line = HalfLine(p)
+
+    ints = SortedList(key=lambda el: el.range[1])
+    for sp in sky:
+        sp_line = HalfLine(sp)
+        pnt = find_halflines_intersection(p_line, sp_line)
+        ints.add(Interval(sp_line, np.array([np.nan, pnt.coord[0]]), sp_line.q < p_line.q))
+    ints.add(Interval(None, np.array([np.nan, 1]), False))
+    print("> {} halflines(s) have been inserted".format(len(sky)))
+
+    n_exp = 0
+
+    while True:
+        minorder = np.inf
+        mincells = []
+        last_end = 0
+
+        covering = [cell.halfline for cell in ints if cell.coversleft]
+
+        for cell in ints:
+            cell.order = len(covering)
+            cell.covered = covering.copy()
+            cell.range[0] = last_end
+            last_end = cell.range[1]
+
+            if cell.order < minorder:
+                minorder = cell.order
+                mincells = [cell]
+            elif cell.order == minorder:
+                mincells += [cell]
+
+            if cell.coversleft:
+                covering.pop(0)
+            else:
+                covering.append(cell.halfline)
+        print("> Expansion {}: Found {} mincell(s)".format(n_exp, len(mincells)))
+
+        # Check all mincells found for singulars; if they aren't put their halflines up for expansion
+        mincells_singular = []
+        to_expand = []
+        for cell in mincells:
+            if cell.issingular():
+                mincells_singular.append(cell)
+            else:
+                to_expand += [hl for hl in cell.covered if hl.arr == Arrangement.AUGMENTED and hl not in to_expand]
+        if len(mincells_singular) > 0:
+            print("> Expansion {}: Found {} singular mincell(s) with a minorder of {}"
+                  .format(n_exp, len(mincells_singular), minorder))
+
+        # If there aren't any new halflines to expand then the search is terminated
+        if len(to_expand) == 0:
+            return len(dominators) + minorder + 1, mincells_singular
+        else:
+            n_exp += 1
+
+            print("> Expansion {}: {} halfline(s) will be expanded".format(n_exp, len(to_expand)))
+            for hl in to_expand:
+                hl.arr = Arrangement.SINGULAR
+                incomp.remove(hl.pnt)
+
+            new_sky = query.getskyline(incomp)
+            to_insert = [sp for sp in new_sky if sp not in sky]
+            sky = new_sky
+
+            for sp in to_insert:
+                sp_line = HalfLine(sp)
+                pnt = find_halflines_intersection(p_line, sp_line)
+                ints.add(Interval(sp_line, np.array([np.nan, pnt.coord[0]]), sp_line.q < p_line.q))
+            if len(to_insert) > 0:
+                print("> {} halflines(s) have been inserted".format(len(to_insert)))
 
 
 def aa_hd(data, p):

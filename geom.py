@@ -17,6 +17,18 @@ class HalfSpace:
         self.dims = len(coeff)
 
 
+class HalfLine:
+    def __init__(self, pnt):
+        self.pnt = pnt
+        self.m = pnt.coord[0] - pnt.coord[1]
+        self.q = pnt.coord[1]
+        self.arr = Arrangement.AUGMENTED
+        self.dims = 2
+
+    def get_y(self, x):
+        return self.m * x + self.q
+
+
 class Position(Enum):
     ABOVE = 1
     BELOW = -1
@@ -56,3 +68,12 @@ def find_pointhalfspace_position(point, halfspace):
         return Position.BELOW
     else:
         return Position.OVERLAPPED
+
+
+def find_halflines_intersection(r, s):
+    if r.m == s.m:
+        return None
+    else:
+        x = (s.q - r.q) / (r.m - s.m)
+
+        return Point([x, r.get_y(x)])

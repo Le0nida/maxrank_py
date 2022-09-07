@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from geom import *
-from maxrank import aa_hd, ba_hd
+from maxrank import aa_hd, ba_hd, aa_2d
 
 print("\n" * 25)
 
@@ -27,18 +27,29 @@ if __name__ == "__main__":
     res = []
     cells = []
 
-    for q in query:
-        print("#  Processing data point {}  #".format(q))
-        idx = np.where(data_df.index == q)[0][0]
+    if data_df.shape[1] > 2:
+        for q in query:
+            print("#  Processing data point {}  #".format(q))
+            idx = np.where(data_df.index == q)[0][0]
 
-        if method == 'BA':
-            maxrank, mincells = ba_hd(data, data[idx])
-        else:
-            maxrank, mincells = aa_hd(data, data[idx])
-        print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
+            if method == 'BA':
+                maxrank, mincells = ba_hd(data, data[idx])
+            else:
+                maxrank, mincells = aa_hd(data, data[idx])
+            print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
 
-        res.append([q, maxrank])
-        cells.append([q, list(mincells[0].feasible_pnt.coord) + [1 - sum(mincells[0].feasible_pnt.coord)]])
+            res.append([q, maxrank])
+            cells.append([q, list(mincells[0].feasible_pnt.coord) + [1 - sum(mincells[0].feasible_pnt.coord)]])
+    else:
+        for q in query:
+            print("#  Processing data point {}  #".format(q))
+            idx = np.where(data_df.index == q)[0][0]
+
+            maxrank, mincells = aa_2d(data, data[idx])
+            print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
+
+            res.append([q, maxrank])
+            cells.append([q, [list(cell.range) for cell in mincells]])
 
     cells = pd.DataFrame(cells, columns=['id', 'query_found'])
     cells.set_index('id', inplace=True)
