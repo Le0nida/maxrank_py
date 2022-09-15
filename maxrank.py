@@ -192,8 +192,8 @@ def ba_hd(data, p):
 
     halfspaces = genhalfspaces(p, incomp)
 
-    for hs in halfspaces:
-        qt.inserthalfspace(qt.root, hs)
+    if len(halfspaces) > 0:
+        qt.inserthalfspace_new(halfspaces)
     print("> {} halfspaces have been inserted".format(len(halfspaces)))
 
     leaves = qt.getleaves()
@@ -233,7 +233,7 @@ def ba_hd(data, p):
     return len(dominators) + minorder + 1, mincells
 
 
-# TODO Wrap sortedlist of intevals as object
+# TODO Wrap sortedlist of intervals as object
 def aa_2d(data, p):
     # Compute dominators and incomparables
     dominators = query.getdominators(data, p)
@@ -318,9 +318,8 @@ def aa_hd(data, p):
         new_sky = query.getskyline(incomp)
         new_halfspaces = genhalfspaces(p, [pnt for pnt in new_sky if pnt not in old_sky])
 
-        for hs in new_halfspaces:
-            qt.inserthalfspace(qt.root, hs)
         if len(new_halfspaces) > 0:
+            qt.inserthalfspace_new(new_halfspaces)
             print("> {} halfspace(s) have been inserted".format(len(new_halfspaces)))
 
         new_leaves = qt.getleaves()

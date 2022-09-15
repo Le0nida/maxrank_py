@@ -30,9 +30,16 @@ class HalfLine:
 
 
 class Position(Enum):
-    ABOVE = 1
-    BELOW = -1
-    OVERLAPPED = 0
+    """
+    Defines the reciprocal position between a point and a halfspace.
+    A point can be:
+        IN -> Inside the halfspace: satisfies the halfspace disequation
+        OUT -> Outside the halfspace: is inside the halfspace complement
+        ON -> Lies on the halfspace boundary: satisfies the halfspace equation
+    """
+    IN = 1
+    OUT = -1
+    ON = 0
 
 
 class Arrangement(Enum):
@@ -61,13 +68,12 @@ def genhalfspaces(p, records):
 def find_pointhalfspace_position(point, halfspace):
     val = halfspace.coeff.dot(point.coord)
 
-    # The position is referred to the halfspace with respect to the point
     if val < halfspace.known:
-        return Position.ABOVE
+        return Position.IN
     elif val > halfspace.known:
-        return Position.BELOW
+        return Position.OUT
     else:
-        return Position.OVERLAPPED
+        return Position.ON
 
 
 def find_halflines_intersection(r, s):

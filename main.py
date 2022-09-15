@@ -5,7 +5,6 @@ import pandas as pd
 from geom import *
 from maxrank import aa_hd, ba_hd, aa_2d
 
-print("\n" * 25)
 
 if __name__ == "__main__":
     datafile = sys.argv[1]
@@ -32,6 +31,8 @@ if __name__ == "__main__":
             print("#  Processing data point {}  #".format(q))
             idx = np.where(data_df.index == q)[0][0]
 
+            print("#  {}  #".format(data[idx].coord))
+
             if method == 'BA':
                 maxrank, mincells = ba_hd(data, data[idx])
             else:
@@ -44,6 +45,8 @@ if __name__ == "__main__":
         for q in query:
             print("#  Processing data point {}  #".format(q))
             idx = np.where(data_df.index == q)[0][0]
+
+            print("#  {}  #".format(data[idx].coord))
 
             maxrank, mincells = aa_2d(data, data[idx])
             print("#  MaxRank: {}  NOfMincells: {}  #\n".format(maxrank, len(mincells)))
