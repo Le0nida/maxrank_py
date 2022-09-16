@@ -7,6 +7,7 @@ class QTree:
     def __init__(self, dims, maxhsnode):
         self.dims = dims
         self.maxhsnode = maxhsnode
+        self.masks = (genmasks(dims))
         self.root = self.createroot()
 
     def createroot(self):
@@ -27,11 +28,13 @@ class QTree:
             # Compute new mbr
             child_mindim = np.where(qbin == '0', mindim, (mindim + maxdim) / 2)
             child_maxdim = np.where(qbin == '1', maxdim, (mindim + maxdim) / 2)
-            # Do not build nodes laying above the q1 + q2 + ... + qd = 1 halfspace
-            if sum(child_mindim) >= 1:
-                continue
 
             child = QNode(node, np.column_stack((child_mindim, child_maxdim)))
+
+            # Do not build nodes laying above the q1 + q2 + ... + qd = 1 halfspace
+            if sum(child_mindim) >= 1:
+                child.norm = False
+
             node.children.append(child)
 
     def inserthalfspace(self, node, halfspace):
@@ -72,15 +75,16 @@ class QTree:
         while len(to_search) > 0:
             current = to_search.pop()
 
-            current.inserthalfspaces(current.halfspaces)
+            current.inserthalfspaces(self.masks, current.halfspaces)
             current.halfspaces = []
 
             for child in current.children:
-                if not child.isleaf() and len(child.halfspaces) > 0:
-                    to_search.append(child)
-                elif len(child.halfspaces) > self.maxhsnode:
-                    self.splitnode(child)
-                    to_search.append(child)
+                if child.norm:
+                    if not child.isleaf() and len(child.halfspaces) > 0:
+                        to_search.append(child)
+                    elif len(child.halfspaces) > self.maxhsnode:
+                        self.splitnode(child)
+                        to_search.append(child)
 
     def getleaves(self):
         leaves = []
@@ -89,10 +93,11 @@ class QTree:
         while len(to_search) > 0:
             current = to_search.pop()
 
-            if current.isleaf():
-                leaves.append(current)
-            else:
-                to_search += current.children
+            if current.norm:
+                if current.isleaf():
+                    leaves.append(current)
+                else:
+                    to_search += current.children
 
         return leaves
 
@@ -100,6 +105,7 @@ class QTree:
 class QNode:
     def __init__(self, parent, mbr):
         self.mbr = mbr
+        self.norm = True
         self.order = None
         self.parent = parent
         self.children = []
@@ -132,27 +138,25 @@ class QNode:
 
         return covered
 
-    def inserthalfspaces(self, halfspaces):
+    def inserthalfspaces(self, masks, halfspaces):
         incr = (self.mbr[:, 1] - self.mbr[:, 0]) / 2
-        pts = (self.mbr[:, 0] + self.mbr[:, 1]) / 2
-        pts = pts.reshape(1, pts.shape[0])
+        half = (self.mbr[:, 0] + self.mbr[:, 1]) / 2
+        pts_mask, nds_mask = masks
 
-        for d in range(self.mbr.shape[0]):
-            lower, higher = np.copy(pts), np.copy(pts)
-            lower[:, d] -= incr[d]
-            higher[:, d] += incr[d]
-
-            pts = np.vstack((pts, lower, higher))
+        pts = incr * pts_mask + half
 
         coeff = np.array([hs.coeff for hs in halfspaces])
         known = np.array([hs.known for hs in halfspaces])
         pos = np.where(pts.dot(coeff.T) < known, Position.IN, Position.OUT)
 
         for hs in range(pos.shape[1]):
-            rel = pts[np.where(pos[:, hs] != pos[0, hs])]
+            rel = np.where(pos[:, hs] != pos[0, hs])
 
-            for child in self.children:
-                if np.any(np.all((rel == child.mbr[:, 0]) + (rel == child.mbr[:, 1]), axis=1)):
-                    child.halfspaces.append(halfspaces[hs])
-                elif pos[0, hs] == Position.IN:
-                    child.covered.append(halfspaces[hs])
+            cross = np.where(np.sum(nds_mask[rel], axis=0) > 0)
+            for c in cross[0]:
+                self.children[c].halfspaces.append(halfspaces[hs])
+
+            if pos[0, hs] == Position.IN:
+                not_cross = np.where(np.sum(nds_mask[rel], axis=0) == 0)
+                for nc in not_cross[0]:
+                    self.children[nc].covered.append(halfspaces[hs])

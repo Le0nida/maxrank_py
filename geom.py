@@ -1,3 +1,5 @@
+import numpy as np
+
 from enum import Enum
 
 
@@ -83,3 +85,35 @@ def find_halflines_intersection(r, s):
         x = (s.q - r.q) / (r.m - s.m)
 
         return Point([x, r.get_y(x)])
+
+
+def genmasks(dims):
+    incr = np.full(dims, 0.5)
+    pts = np.full((1, dims), 0.5)
+
+    for d in range(dims):
+        lower, higher = np.copy(pts), np.copy(pts)
+        lower[:, d] -= incr[d]
+        higher[:, d] += incr[d]
+
+        pts = np.vstack((pts, lower, higher))
+    pts_mask = (pts - incr) / incr
+
+    mbr = np.empty((2 ** dims, dims, 2))
+    for quad in range(2 ** dims):
+        # Convert the quadrant number in binary
+        qbin = np.array(list(np.binary_repr(quad, width=dims)))
+
+        # Compute new mbr
+        child_mindim = np.where(qbin == '0', 0, 0.5)
+        child_maxdim = np.where(qbin == '1', 1, 0.5)
+
+        mbr[quad] = np.column_stack((child_mindim, child_maxdim))
+
+    nds_mask = np.zeros((pts.shape[0], 2 ** dims), dtype=int)
+    for p in range(pts.shape[0]):
+        for n in range(2 ** dims):
+            if np.all((pts[p] == mbr[n, :, 0]) + (pts[p] == mbr[n, :, 1])):
+                nds_mask[p, n] = 1
+
+    return pts_mask, nds_mask
