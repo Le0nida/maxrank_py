@@ -33,13 +33,22 @@ class Interval:
         return all([hl.arr == Arrangement.SINGULAR for hl in self.covered])
 
 
-# TODO Build upwards to weight = strlen/2 else build downwards
 def genhammingstrings(strlen, weight):
+    """
+    Builds all Hamming strings given a length and a weight (number of 1s).
+    The approach used is bottom-up, building strings with a bigger weight from those with a lower one. The strings are handled in their binary rep and ultimately converted.
+    """
+
+    if weight > np.ceil(strlen / 2):
+        weight = strlen - weight
+        botup = False
+    else: 
+        botup = True
+
     if weight == 0:
-        return [np.binary_repr(0, width=strlen)]
+        decstr = [0]
     elif weight == 1:
         decstr = [2 ** b for b in range(strlen)]
-        return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
     else:
         halfmax = 2 ** (strlen - 1) - 1
         curr_weight = 2
@@ -59,7 +68,8 @@ def genhammingstrings(strlen, weight):
                 curr_weight += 1
             else:
                 break
-
+    
+    if botup:
         return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
 
 
