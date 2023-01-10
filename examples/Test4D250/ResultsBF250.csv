@@ -249,3 +249,5 @@ id,maxrank
 248,38
 249,1
 250,8
+# These results were produced using an external program that sampled the entire query space, making millions of queries, to estimate the MaxRank. The goal was to proof-check the proper MaxRank's implementation results. 
+# Despite the amount of queries done, some results are still skewed and differ from what the proper implementation reports which proves to be more precise.

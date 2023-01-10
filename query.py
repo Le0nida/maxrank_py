@@ -1,8 +1,21 @@
 import numpy as np
 
 
-# TODO Implement Rtree to optimize these operations (BBS for sky)
+"""
+Query
+Utility methods for querying data
+
+NOTE: An Rtree implementation could be used to optimize all these operations (BBS for skyline). 
+Considering Python itself is a way narrower bottleneck of performance than any of these methods, the Rtree implementation was abandoned.
+"""
+
+
+
 def getdominators(data, p):
+    """
+    Computes the dominators of target record "p".
+    """
+
     dominators = []
     for r in data:
         if np.all(r.coord <= p.coord) and np.any(r.coord < p.coord):
@@ -12,6 +25,10 @@ def getdominators(data, p):
 
 
 def getdominees(data, p):
+    """
+    Computes the dominees of target record "p".   
+    """
+
     dominees = []
     for r in data:
         if np.all(r.coord >= p.coord) and np.any(r.coord > p.coord):
@@ -21,6 +38,10 @@ def getdominees(data, p):
 
 
 def getincomparables(data, p):
+    """
+    Computes the records incomparable to target record "p".   
+    """
+
     incomp = []
     for r in data:
         if np.any(r.coord < p.coord) and np.any(r.coord > p.coord):
@@ -30,6 +51,10 @@ def getincomparables(data, p):
 
 
 def getskyline(data):
+    """
+    Computes the skyline of "data" using BNL.
+    """
+    
     def dominates(p, r):
         return np.all(p.coord <= r.coord) and np.any(p.coord < r.coord)
 

@@ -49,3 +49,5 @@ id,maxrank
 48,7
 49,2
 50,1
+# These results were produced using an external program that sampled the entire query space, making millions of queries, to estimate the MaxRank. The goal was to proof-check the proper MaxRank's implementation results. 
+# Despite the amount of queries done, some results are still skewed and differ from what the proper implementation reports (see point 27) which proves to be more precise.

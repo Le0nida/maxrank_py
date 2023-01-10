@@ -7,7 +7,18 @@ from geom import *
 from qtree import QTree
 
 
+"""
+Maxrank
+Implements the actual MaxRank procedures.
+"""
+
+
+
 class Cell:
+    """
+    Object class representing a Mincell.
+    """
+
     def __init__(self, order, mask, covered, halfspaces, leaf_mbr, feasible_pnt):
         self.order = order
         self.mask = mask
@@ -21,6 +32,10 @@ class Cell:
 
 
 class Interval:
+    """
+    Object class representing a 1D Mincell.
+    """
+
     order = None
     covered = []
 
@@ -71,63 +86,14 @@ def genhammingstrings(strlen, weight):
     
     if botup:
         return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
-
-
-def searchmincells_mc(leaf, hamstrings):
-    cells = []
-    leaf_covered = leaf.getcovered()
-
-    # If there are no halfspaces, then the whole leaf is the mincell
-    if len(leaf.halfspaces) == 0:
-        return [Cell(
-            None,
-            None,
-            leaf_covered,
-            [],
-            leaf.mbr,
-            Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
-        )]
-
-    for hamstr in hamstrings:
-        # MonteCarlo -> If we can't generate a feasible point in 5000 iterations, "probably" the cell does not exist
-        for i in range(5000):
-            found = True
-            while True:
-                point = Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=leaf.halfspaces[0].dims))
-                # Only generate query points that are normalized
-                if sum(point.coord) <= 1:
-                    break
-
-            # Check if the point falls in the halfspaces arrangment dictated by the hamming string
-            for b in range(len(hamstr)):
-                if hamstr[b] == '0':
-                    if not find_pointhalfspace_position(point, leaf.halfspaces[b]) == Position.BELOW:
-                        found = False
-                        break
-                else:
-                    if not find_pointhalfspace_position(point, leaf.halfspaces[b]) == Position.ABOVE:
-                        found = False
-                        break
-
-            # If the point respects all equations, that means the relative mincell exists
-            if found:
-                cell = Cell(
-                    None,
-                    hamstr,
-                    leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
-                    leaf.halfspaces,
-                    leaf.mbr,
-                    point
-                )
-                cells.append(cell)
-                break
-
-    return cells
+    else:
+        decmax = 2 ** strlen - 1
+        return [np.binary_repr(decmax - decstr[i], width=strlen) for i in range(len(decstr))]
 
 
 def searchmincells_lp(leaf, hamstrings):
     """
-    Mincell search algorithm using linear programming
+    Mincell search algorithm using linear programming.
 
     max x_d+1
     s.t.
@@ -141,6 +107,7 @@ def searchmincells_lp(leaf, hamstrings):
     > The third constraint states that the query must fall into the current leaf mbr
     > Finally the last constraint forces the "slack" to be positive
     """
+
     cells = []
     dims = leaf.mbr.shape[0]
     leaf_covered = leaf.getcovered()
@@ -195,6 +162,10 @@ def searchmincells_lp(leaf, hamstrings):
 
 
 def ba_hd(data, p):
+    """
+    Basic Approach to compute MaxRank when DIM > 2 as described in the MaxRank paper.
+    """
+
     qt = QTree(p.dims - 1, 10)
 
     dominators = query.getdominators(data, p)
@@ -203,7 +174,7 @@ def ba_hd(data, p):
     halfspaces = genhalfspaces(p, incomp)
 
     if len(halfspaces) > 0:
-        qt.inserthalfspace_new(halfspaces)
+        qt.inserthalfspace(halfspaces)
     print("> {} halfspaces have been inserted".format(len(halfspaces)))
 
     leaves = qt.getleaves()
@@ -243,8 +214,11 @@ def ba_hd(data, p):
     return len(dominators) + minorder + 1, mincells
 
 
-# TODO Wrap sortedlist of intervals as object
 def aa_2d(data, p):
+    """
+    Advanced Approach to compute MaxRank when DIM = 2 as described in the MaxRank paper.
+    """
+
     # Compute dominators and incomparables
     dominators = query.getdominators(data, p)
     incomp = query.getincomparables(data, p)
@@ -323,13 +297,20 @@ def aa_2d(data, p):
 
 
 def aa_hd(data, p):
-    # Computes skyline of incomparables, insert their halfspaces in the QTree and retrieves the leaves
+    """
+    Advanced Approach to compute MaxRank when DIM > 2 as described in the MaxRank paper.
+    """
+
     def updateqt(old_sky):
+        """
+        Computes skyline of incomparables, insert their halfspaces in the QTree and retrieves the leaves.
+        """
+
         new_sky = query.getskyline(incomp)
         new_halfspaces = genhalfspaces(p, [pnt for pnt in new_sky if pnt not in old_sky])
 
         if len(new_halfspaces) > 0:
-            qt.inserthalfspace_new(new_halfspaces)
+            qt.inserthalfspace(new_halfspaces)
             print("> {} halfspace(s) have been inserted".format(len(new_halfspaces)))
 
         new_leaves = qt.getleaves()

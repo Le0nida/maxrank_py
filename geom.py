@@ -1,6 +1,11 @@
-import numpy as np
-
 from enum import Enum
+
+
+"""
+Geom
+Contains classes representing geometrical objects used in MaxRank procedures along with some useful methods.
+"""
+
 
 
 class Point:
@@ -10,16 +15,11 @@ class Point:
         self.dims = len(coord)
 
 
-class HalfSpace:
-    def __init__(self, pnt, coeff, known):
-        self.pnt = pnt
-        self.coeff = coeff
-        self.known = known
-        self.arr = Arrangement.AUGMENTED
-        self.dims = len(coeff)
-
-
 class HalfLine:
+    """
+    Represents the score halfline relative to the point "pnt" and the target. Used only in 2D procedures.
+    The halfline equation is stored in the explicit form y = m*x + q.
+    """
     def __init__(self, pnt):
         self.pnt = pnt
         self.m = pnt.coord[0] - pnt.coord[1]
@@ -31,26 +31,38 @@ class HalfLine:
         return self.m * x + self.q
 
 
-class Position(Enum):
+def find_halflines_intersection(r, s):
     """
-    Defines the reciprocal position between a point and a halfspace.
-    A point can be:
-        IN -> Inside the halfspace: satisfies the halfspace disequation
-        OUT -> Outside the halfspace: is inside the halfspace complement
-        ON -> Lies on the halfspace boundary: satisfies the halfspace equation
+    Calculates the intersection point between two halflines.
     """
-    IN = 1
-    OUT = -1
-    ON = 0
+
+    if r.m == s.m:
+        return None
+    else:
+        x = (s.q - r.q) / (r.m - s.m)
+
+        return Point([x, r.get_y(x)])
 
 
-class Arrangement(Enum):
-    SINGULAR = 0
-    AUGMENTED = 1
+class HalfSpace:
+    """
+    Represents the score halfspace relative to the point "pnt" and the target.
+    The halfspace equation is stored as the unknowns coefficients (coeff) and the known terms (known).
+    """
+    def __init__(self, pnt, coeff, known):
+        self.pnt = pnt
+        self.coeff = coeff
+        self.known = known
+        self.arr = Arrangement.AUGMENTED
+        self.dims = len(coeff)
 
 
-# TODO Put this as class method
 def genhalfspaces(p, records):
+    """
+    Generates all score halfspaces relative to the target "p" and all incomparable data points "records".
+    See MaxRank paper for reference on the formula.
+    """
+
     halfspaces = []
     p_d = p.coord[-1]
     p_i = p.coord[:-1]
@@ -66,8 +78,24 @@ def genhalfspaces(p, records):
     return halfspaces
 
 
-# TODO Put this as class method
+class Position(Enum):
+    """
+    Defines the reciprocal position between a point and a halfspace.
+    A point can be:
+        IN -> Inside the halfspace: satisfies the halfspace disequation
+        OUT -> Outside the halfspace: is inside the halfspace complement
+        ON -> Lies on the halfspace boundary: satisfies the halfspace equation
+    """
+    IN = 1
+    OUT = -1
+    ON = 0
+
+
 def find_pointhalfspace_position(point, halfspace):
+    """
+    Evaluates the reciprocal position between a point and an halfspace.
+    """
+
     val = halfspace.coeff.dot(point.coord)
 
     if val < halfspace.known:
@@ -78,42 +106,11 @@ def find_pointhalfspace_position(point, halfspace):
         return Position.ON
 
 
-def find_halflines_intersection(r, s):
-    if r.m == s.m:
-        return None
-    else:
-        x = (s.q - r.q) / (r.m - s.m)
+class Arrangement(Enum):
+    """
+    Characterizes an halfspace(line) as singular or augmented as defined in the MaxRank paper.
+    Used only in AA algorithms.
+    """
 
-        return Point([x, r.get_y(x)])
-
-
-def genmasks(dims):
-    incr = np.full(dims, 0.5)
-    pts = np.full((1, dims), 0.5)
-
-    for d in range(dims):
-        lower, higher = np.copy(pts), np.copy(pts)
-        lower[:, d] -= incr[d]
-        higher[:, d] += incr[d]
-
-        pts = np.vstack((pts, lower, higher))
-    pts_mask = (pts - incr) / incr
-
-    mbr = np.empty((2 ** dims, dims, 2))
-    for quad in range(2 ** dims):
-        # Convert the quadrant number in binary
-        qbin = np.array(list(np.binary_repr(quad, width=dims)))
-
-        # Compute new mbr
-        child_mindim = np.where(qbin == '0', 0, 0.5)
-        child_maxdim = np.where(qbin == '1', 1, 0.5)
-
-        mbr[quad] = np.column_stack((child_mindim, child_maxdim))
-
-    nds_mask = np.zeros((pts.shape[0], 2 ** dims), dtype=int)
-    for p in range(pts.shape[0]):
-        for n in range(2 ** dims):
-            if np.all((pts[p] == mbr[n, :, 0]) + (pts[p] == mbr[n, :, 1])):
-                nds_mask[p, n] = 1
-
-    return pts_mask, nds_mask
+    SINGULAR = 0
+    AUGMENTED = 1
