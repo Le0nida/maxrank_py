@@ -21,7 +21,6 @@ if __name__ == "__main__":
 
         data.append(Point(record.to_numpy(), _id=record.name))
 
-    # rt = RTree(df, maxpntnode=5)
 
     res = []
     cells = []
