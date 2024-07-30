@@ -1,17 +1,31 @@
 import numpy as np
 from sortedcontainers import SortedList
 from scipy.optimize import linprog
+from ctypes import CDLL, c_double, c_int, POINTER
 
 import query
 from geom import *
 from qtree import QTree
 
+# Load the shared library
+lpsolver = CDLL('./lpsolver.so')
+
+# Define the solve_lp function's argument and return types
+lpsolver.solve_lp.argtypes = [
+    POINTER(c_double), # coefficients
+    POINTER(c_int),    # hamstrings
+    POINTER(c_double), # bounds
+    POINTER(c_double), # result
+    c_int,             # num_halfspaces
+    c_int              # dims
+]
+
+lpsolver.solve_lp.restype = None
 
 """
 Maxrank
 Implements the actual MaxRank procedures.
 """
-
 
 
 class Cell:
@@ -57,7 +71,7 @@ def genhammingstrings(strlen, weight):
     if weight > np.ceil(strlen / 2):
         weight = strlen - weight
         botup = False
-    else: 
+    else:
         botup = True
 
     if weight == 0:
@@ -83,7 +97,7 @@ def genhammingstrings(strlen, weight):
                 curr_weight += 1
             else:
                 break
-    
+
     if botup:
         return [np.binary_repr(decstr[i], width=strlen) for i in range(len(decstr))]
     else:
@@ -123,37 +137,42 @@ def searchmincells_lp(leaf, hamstrings):
             Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
         )]
 
-    c = np.zeros(dims + 1)
-    c[-1] = -1
-
-    A_ub = np.ones((len(leaf.halfspaces) + 1, dims + 1))
-    A_ub[-1, -1] = 0
-
-    b_ub = np.ones(len(leaf.halfspaces) + 1)
-
     bounds = [(leaf.mbr[d, 0], leaf.mbr[d, 1]) for d in range(dims)]
-    bounds += [(0, None)]
+    bounds_flat = np.array([b for pair in bounds for b in pair], dtype=np.float64)
+
+    coefficients = []
+    for hs in leaf.halfspaces:
+        coefficients.extend(hs.coeff)
+        coefficients.append(hs.known)  # Adding the known value as the last coefficient
+
+    coefficients_flat = np.array(coefficients, dtype=np.float64)
 
     for hamstr in hamstrings:
-        for b in range(len(hamstr)):
-            if hamstr[b] == '0':
-                A_ub[b, :-1] = -leaf.halfspaces[b].coeff
-                b_ub[b] = -leaf.halfspaces[b].known
-            else:
-                A_ub[b, :-1] = leaf.halfspaces[b].coeff
-                b_ub[b] = leaf.halfspaces[b].known
+        # Convert hamstrings to a C array
+        hamstr_c = (c_int * len(hamstr))(*map(int, hamstr))
 
-        fp = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method='highs')
+        # Prepare result array
+        result = np.zeros(dims + 1, dtype=np.float64)
 
-        # If the point respects all equations, that means the relative mincell exists
-        if fp.success:
+        # Call the C function
+        lpsolver.solve_lp(
+            coefficients_flat.ctypes.data_as(POINTER(c_double)),
+            hamstr_c,
+            bounds_flat.ctypes.data_as(POINTER(c_double)),
+            result.ctypes.data_as(POINTER(c_double)),
+            len(leaf.halfspaces),
+            dims
+        )
+
+        # Check the result for feasibility
+        if result[-1] >= 0:  # Assuming -1 indicates infeasibility
             cell = Cell(
                 None,
                 hamstr,
                 leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                 leaf.halfspaces,
                 leaf.mbr,
-                Point(fp.x[:-1])
+                Point(result[:-1])
             )
             cells.append(cell)
             break
