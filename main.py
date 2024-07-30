@@ -1,10 +1,12 @@
+import cProfile
+import pstats
+import io
 import sys
 import numpy as np
 import pandas as pd
 
 from geom import *
 from maxrank import aa_hd, ba_hd, aa_2d
-
 
 """
 Main
@@ -19,9 +21,7 @@ The output of the computation consists in two CSV files, "maxrank.csv" and "cell
 "cells.csv" contains the mincells' intervals (DIM = 2) or an example query (DIM > 2)
 """
 
-
-
-if __name__ == "__main__":
+def main():
     datafile = sys.argv[1]
     queryfile = sys.argv[2]
     method = sys.argv[3]
@@ -37,7 +37,6 @@ if __name__ == "__main__":
         record = data_df.iloc[i]
 
         data.append(Point(record.to_numpy(), _id=record.name))
-
 
     # The main MaxRank routine is called according to the dimensionality and method chosen
     # Each query is handled separately and then the results are glued together
@@ -81,3 +80,21 @@ if __name__ == "__main__":
     res.set_index('id', inplace=True)
     res.to_csv("./maxrank.csv")
     print(res)
+
+
+if __name__ == "__main__":
+    # Profilazione del programma
+    pr = cProfile.Profile()
+    pr.enable()
+
+    main()
+
+    pr.disable()
+    s = io.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print(s.getvalue())
+
+
+
