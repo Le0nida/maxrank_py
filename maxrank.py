@@ -1,7 +1,7 @@
+import ctypes
+
 import numpy as np
 from sortedcontainers import SortedList
-from scipy.optimize import linprog
-import ctypes
 
 import query
 from geom import *
@@ -24,6 +24,7 @@ class LinprogResult(ctypes.Structure):
         ("message", ctypes.c_char * 128),
     ]
 
+
 # Definisci le firme delle funzioni
 lib.linprog_highs.argtypes = [
     ctypes.POINTER(ctypes.c_double),  # c
@@ -35,6 +36,7 @@ lib.linprog_highs.argtypes = [
 ]
 lib.linprog_highs.restype = ctypes.POINTER(LinprogResult)
 lib.free_linprog_result.argtypes = [ctypes.POINTER(LinprogResult)]
+
 
 # Funzione per chiamare il solutore
 def linprog_highs(c, A_ub, b_ub, bounds):
@@ -67,25 +69,6 @@ def linprog_highs(c, A_ub, b_ub, bounds):
 
     return solution, fun, status, message
 
-# Test della funzione
-if __name__ == "__main__":
-    c = np.array([0.0, 0.0, -1.0])
-    A_ub = np.array([
-        [-0.17754595,  0.53934412,  1.0],
-        [-0.30242941,  0.59185904,  1.0],
-        [ 0.0826064,   0.77610884,  1.0],
-        [ 0.14718387,  0.96595473,  1.0],
-        [-0.58148638,  0.44588808,  1.0],
-        [ 1.0,         1.0,         0.0]
-    ])
-    b_ub = np.array([-0.12014105, -0.23681703,  0.09674357,  0.13110948, -0.45334748,  1.0])
-    bounds = [(0.875, 1.0), (0.0, 0.125), (0, None)]
-
-    solution, fun, status, message = linprog_highs(c, A_ub, b_ub, bounds)
-    print("\n\nSolution:", solution)
-    print("Objective value:", fun)
-    print("Status:", status)
-    print("Message:", message)
 
 class Cell:
     """
@@ -216,7 +199,6 @@ def searchmincells_lp(leaf, hamstrings):
             else:
                 A_ub[b, :-1] = leaf.halfspaces[b].coeff
                 b_ub[b] = leaf.halfspaces[b].known
-
 
         solution, fun, status, message = linprog_highs(c, A_ub, b_ub, bounds)
 
