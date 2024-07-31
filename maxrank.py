@@ -1,31 +1,33 @@
 import numpy as np
 from sortedcontainers import SortedList
 from scipy.optimize import linprog
-from ctypes import CDLL, c_double, c_int, POINTER
+import ctypes
 
 import query
 from geom import *
 from qtree import QTree
 
-# Load the shared library
-lpsolver = CDLL('./lpsolver.so')
-
-# Define the solve_lp function's argument and return types
-lpsolver.solve_lp.argtypes = [
-    POINTER(c_double), # coefficients
-    POINTER(c_int),    # hamstrings
-    POINTER(c_double), # bounds
-    POINTER(c_double), # result
-    c_int,             # num_halfspaces
-    c_int              # dims
-]
-
-lpsolver.solve_lp.restype = None
-
 """
 Maxrank
 Implements the actual MaxRank procedures.
 """
+
+lib = ctypes.CDLL('./lpsolver.so')
+
+
+# Definisci le strutture e le funzioni della libreria C
+class LPResult(ctypes.Structure):
+    _fields_ = [("success", ctypes.c_int),
+                ("x", ctypes.POINTER(ctypes.c_double)),
+                ("fun", ctypes.c_double)]
+
+
+lib.solve_lp.argtypes = [ctypes.c_int, ctypes.c_int,
+                         ctypes.POINTER(ctypes.c_double),
+                         ctypes.POINTER(ctypes.c_double),
+                         ctypes.POINTER(ctypes.c_double),
+                         ctypes.POINTER(ctypes.c_double)]
+lib.solve_lp.restype = ctypes.POINTER(LPResult)
 
 
 class Cell:
@@ -105,6 +107,13 @@ def genhammingstrings(strlen, weight):
         return [np.binary_repr(decmax - decstr[i], width=strlen) for i in range(len(decstr))]
 
 
+
+def print_array(arr, name):
+    print(f"{name}:")
+    print(arr)
+    print("\n\n")
+
+
 def searchmincells_lp(leaf, hamstrings):
     """
     Mincell search algorithm using linear programming.
@@ -137,42 +146,61 @@ def searchmincells_lp(leaf, hamstrings):
             Point(np.random.uniform(low=leaf.mbr[:, 0], high=leaf.mbr[:, 1], size=dims))
         )]
 
+    c = np.zeros(dims + 1)
+    c[-1] = -1
+
+    # Create A_ub and b_ub
+    A_ub = np.ones((len(leaf.halfspaces) + 1, dims + 1))
+    A_ub[-1, -1] = 0
+
+    b_ub = np.ones(len(leaf.halfspaces) + 1)
+
     bounds = [(leaf.mbr[d, 0], leaf.mbr[d, 1]) for d in range(dims)]
-    bounds_flat = np.array([b for pair in bounds for b in pair], dtype=np.float64)
-
-    coefficients = []
-    for hs in leaf.halfspaces:
-        coefficients.extend(hs.coeff)
-        coefficients.append(hs.known)  # Adding the known value as the last coefficient
-
-    coefficients_flat = np.array(coefficients, dtype=np.float64)
+    bounds += [(0, None)]
 
     for hamstr in hamstrings:
-        # Convert hamstrings to a C array
-        hamstr_c = (c_int * len(hamstr))(*map(int, hamstr))
+        for b in range(len(hamstr)):
+            if hamstr[b] == '0':
+                A_ub[b, :-1] = -leaf.halfspaces[b].coeff
+                b_ub[b] = -leaf.halfspaces[b].known
+            else:
+                A_ub[b, :-1] = leaf.halfspaces[b].coeff
+                b_ub[b] = leaf.halfspaces[b].known
 
-        # Prepare result array
-        result = np.zeros(dims + 1, dtype=np.float64)
+        print("\n\n\n")
+
+        # Print array data before conversion to ctypes
+        print_array(c, "Objective coefficients (c)")
+        print_array(A_ub, "Constraint coefficients (A_ub)")
+        print_array(b_ub, "Constraint bounds (b_ub)")
+        print_array(bounds, "Variable bounds")
+
+        print("\n\n\n")
+
+        # Convert arrays to ctypes
+        c_ctypes = c.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        A_ub_ctypes = A_ub.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        b_ub_ctypes = b_ub.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        bounds_ctypes = bounds.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         # Call the C function
-        lpsolver.solve_lp(
-            coefficients_flat.ctypes.data_as(POINTER(c_double)),
-            hamstr_c,
-            bounds_flat.ctypes.data_as(POINTER(c_double)),
-            result.ctypes.data_as(POINTER(c_double)),
-            len(leaf.halfspaces),
-            dims
-        )
+        result = lib.solve_lp(dims, len(leaf.halfspaces) + 1,
+                              c_ctypes, A_ub_ctypes, b_ub_ctypes, bounds_ctypes, None)
 
-        # Check the result for feasibility
-        if result[-1] >= 0:  # Assuming -1 indicates infeasibility
+        # Access the result
+        result = result.contents
+        x = np.ctypeslib.as_array(result.x, shape=(dims + 1,))
+        success = result.success
+        fun = result.fun
+
+        if success:
             cell = Cell(
                 None,
                 hamstr,
                 leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                 leaf.halfspaces,
                 leaf.mbr,
-                Point(result[:-1])
+                Point(x[:-1])
             )
             cells.append(cell)
             break
