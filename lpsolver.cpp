@@ -19,19 +19,28 @@ extern "C" {
         // Define the problem dimensions
         const int num_col = num_vars;
         const int num_row = num_constraints;
-        const int num_nz = num_constraints * num_vars;
 
         // Objective function coefficients
         std::vector<double> col_cost(c, c + num_col);
 
-        // Constraint coefficients
-        std::vector<int> A_start(num_col);
-        std::vector<int> A_index(num_nz);
-        std::vector<double> A_value(A_ub, A_ub + num_nz);
+        // Prepare A_ub in CSR format
+        std::vector<int> A_start(num_row + 1);
+        std::vector<int> A_index;
+        std::vector<double> A_value;
 
-        for (int i = 0; i < num_col; ++i) {
-            A_start[i] = i * num_row;
+        int count = 0;
+        for (int i = 0; i < num_row; ++i) {
+            A_start[i] = count;
+            for (int j = 0; j < num_col; ++j) {
+                double value = A_ub[i * num_col + j];
+                if (value != 0.0) {
+                    A_index.push_back(j);
+                    A_value.push_back(value);
+                    count++;
+                }
+            }
         }
+        A_start[num_row] = count;
 
         // Right-hand side values (upper bounds)
         std::vector<double> row_upper(b_ub, b_ub + num_row);
@@ -51,7 +60,7 @@ extern "C" {
         highs.addCols(num_col, col_cost.data(), col_lower.data(), col_upper.data(),
                       0, nullptr, nullptr, nullptr);
         highs.addRows(num_row, row_lower.data(), row_upper.data(),
-                      num_nz, A_start.data(), A_index.data(), A_value.data());
+                      A_value.size(), A_start.data(), A_index.data(), A_value.data());
 
         // Run HiGHS
         highs.run();
