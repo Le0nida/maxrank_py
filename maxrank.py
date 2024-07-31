@@ -24,7 +24,6 @@ class LinprogResult(ctypes.Structure):
         ("message", ctypes.c_char * 128),
     ]
 
-
 # Definisci le firme delle funzioni
 lib.linprog_highs.argtypes = [
     ctypes.POINTER(ctypes.c_double),  # c
@@ -36,7 +35,6 @@ lib.linprog_highs.argtypes = [
 ]
 lib.linprog_highs.restype = ctypes.POINTER(LinprogResult)
 lib.free_linprog_result.argtypes = [ctypes.POINTER(LinprogResult)]
-
 
 # Funzione per chiamare il solutore
 def linprog_highs(c, A_ub, b_ub, bounds):
@@ -69,6 +67,24 @@ def linprog_highs(c, A_ub, b_ub, bounds):
 
     return solution, fun, status, message
 
+
+# Test della funzione
+if __name__ == "__main__":
+    c = np.array([0.0, 0.0, -1.0])
+    A_ub = np.array([
+        [-0.61385003, -0.36678181,  1.0],
+        [ 0.82523785,  0.32724379,  1.0],
+        [-1.16851646, -0.63505809,  1.0],
+        [ 1.0,         1.0,         0.0]
+    ])
+    b_ub = np.array([-0.53232016, 0.68554353, -0.72504181, 1.0])
+    bounds = [(0.0, 0.5), (0.5, 1.0), (0, None)]
+
+    solution, fun, status, message = linprog_highs(c, A_ub, b_ub, bounds)
+    print("\n\nSolution:", solution)
+    print("Objective value:", fun)
+    print("Status:", status)
+    print("Message:", message)
 
 class Cell:
     """

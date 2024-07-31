@@ -33,8 +33,10 @@ extern "C" {
             A_start[i] = i * num_row;
         }
 
-        // Right-hand side values
+        // Right-hand side values (upper bounds)
         std::vector<double> row_upper(b_ub, b_ub + num_row);
+        // Left-hand side values (lower bounds)
+        std::vector<double> row_lower(num_row, -kHighsInf);
 
         // Variable bounds
         std::vector<double> col_lower(num_col);
@@ -48,7 +50,7 @@ extern "C" {
         // Add columns and rows to HiGHS
         highs.addCols(num_col, col_cost.data(), col_lower.data(), col_upper.data(),
                       0, nullptr, nullptr, nullptr);
-        highs.addRows(num_row, nullptr, row_upper.data(),
+        highs.addRows(num_row, row_lower.data(), row_upper.data(),
                       num_nz, A_start.data(), A_index.data(), A_value.data());
 
         // Run HiGHS
