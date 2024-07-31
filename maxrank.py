@@ -15,19 +15,59 @@ Implements the actual MaxRank procedures.
 lib = ctypes.CDLL('./lpsolver.so')
 
 
-# Definisci le strutture e le funzioni della libreria C
-class LPResult(ctypes.Structure):
-    _fields_ = [("success", ctypes.c_int),
-                ("x", ctypes.POINTER(ctypes.c_double)),
-                ("fun", ctypes.c_double)]
+# Definisci la struttura del risultato
+class LinprogResult(ctypes.Structure):
+    _fields_ = [
+        ("x", ctypes.POINTER(ctypes.c_double)),
+        ("fun", ctypes.c_double),
+        ("status", ctypes.c_int),
+        ("message", ctypes.c_char * 128),
+    ]
 
 
-lib.solve_lp.argtypes = [ctypes.c_int, ctypes.c_int,
-                         ctypes.POINTER(ctypes.c_double),
-                         ctypes.POINTER(ctypes.c_double),
-                         ctypes.POINTER(ctypes.c_double),
-                         ctypes.POINTER(ctypes.c_double)]
-lib.solve_lp.restype = ctypes.POINTER(LPResult)
+# Definisci le firme delle funzioni
+lib.linprog_highs.argtypes = [
+    ctypes.POINTER(ctypes.c_double),  # c
+    ctypes.POINTER(ctypes.c_double),  # A_ub
+    ctypes.POINTER(ctypes.c_double),  # b_ub
+    ctypes.POINTER(ctypes.c_double),  # bounds
+    ctypes.c_int,  # num_vars
+    ctypes.c_int,  # num_constraints
+]
+lib.linprog_highs.restype = ctypes.POINTER(LinprogResult)
+lib.free_linprog_result.argtypes = [ctypes.POINTER(LinprogResult)]
+
+
+# Funzione per chiamare il solutore
+def linprog_highs(c, A_ub, b_ub, bounds):
+    num_vars = len(c)
+    num_constraints = len(b_ub)
+
+    c = (ctypes.c_double * num_vars)(*c)
+    A_ub = (ctypes.c_double * (num_vars * num_constraints))(*A_ub.flatten())
+    b_ub = (ctypes.c_double * num_constraints)(*b_ub)
+
+    # Sostituisci None con np.inf per i bounds
+    bounds_array = []
+    for lb, ub in bounds:
+        if lb is None:
+            lb = -np.inf
+        if ub is None:
+            ub = np.inf
+        bounds_array.append(lb)
+        bounds_array.append(ub)
+
+    bounds = (ctypes.c_double * (2 * num_vars))(*bounds_array)
+
+    result = lib.linprog_highs(c, A_ub, b_ub, bounds, num_vars, num_constraints)
+    solution = np.array([result.contents.x[i] for i in range(num_vars)])
+    fun = result.contents.fun
+    status = result.contents.status
+    message = result.contents.message.decode()
+
+    lib.free_linprog_result(result)
+
+    return solution, fun, status, message
 
 
 class Cell:
@@ -107,7 +147,6 @@ def genhammingstrings(strlen, weight):
         return [np.binary_repr(decmax - decstr[i], width=strlen) for i in range(len(decstr))]
 
 
-
 def print_array(arr, name):
     print(f"{name}:")
     print(arr)
@@ -177,22 +216,13 @@ def searchmincells_lp(leaf, hamstrings):
 
         print("\n\n\n")
 
-        # Convert arrays to ctypes
-        c_ctypes = c.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        A_ub_ctypes = A_ub.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        b_ub_ctypes = b_ub.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        bounds_ctypes = bounds.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        solution, fun, status, message = linprog_highs(c, A_ub, b_ub, bounds)
+        print("Solution:", solution)
+        print("Objective value:", fun)
+        print("Status:", status)
+        print("Message:", message)
 
-        # Call the C function
-        result = lib.solve_lp(dims, len(leaf.halfspaces) + 1,
-                              c_ctypes, A_ub_ctypes, b_ub_ctypes, bounds_ctypes, None)
-
-        # Access the result
-        result = result.contents
-        x = np.ctypeslib.as_array(result.x, shape=(dims + 1,))
-        success = result.success
-        fun = result.fun
-
+        success = False
         if success:
             cell = Cell(
                 None,

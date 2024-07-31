@@ -1,74 +1,77 @@
-#include <iostream>
-#include <limits>
-#include <vector>
 #include "../HiGHS/src/Highs.h"
+#include <vector>
+#include <cstring>  // Aggiungi questa libreria per strncpy
 
 extern "C" {
-struct LPResult {
-    int success;
-    double* x;
-    double fun;
+    struct LinprogResult {
+        double* x;
+        double fun;
+        int status;
+        char message[128];
+    };
 
-    LPResult() : success(0), x(nullptr), fun(0.0) {}
-    ~LPResult() { delete[] x; }
-};
+    LinprogResult* linprog_highs(const double* c, const double* A_ub, const double* b_ub,
+                                 const double* bounds, int num_vars, int num_constraints) {
+        LinprogResult* result = new LinprogResult;
 
-LPResult* solve_lp(int dims, double* c, double* A_ub, double* b_ub, double* bounds_lower, double* bounds_upper) {
-    std::cout << "Entering solve_lp" << std::endl;
-    std::cout << "Number of variables (dims): " << dims << std::endl;
+        Highs highs;
 
-    auto result = new LPResult();
-    result->x = new double[dims];
+        // Define the problem dimensions
+        const int num_col = num_vars;
+        const int num_row = num_constraints;
+        const int num_nz = num_constraints * num_vars;
 
-    Highs highs;
-    highs.setOptionValue("output_flag", true);  // Enable output for library-level debugging
+        // Objective function coefficients
+        std::vector<double> col_cost(c, c + num_col);
 
-    // Log and add variables
-    for (int i = 0; i < dims; ++i) {
-        std::cout << "Preparing to add Column " << i << ": ";
-        std::cout << "Cost = " << c[i] << ", Lower Bound = " << bounds_lower[i] << ", Upper Bound = " << bounds_upper[i] << std::endl;
+        // Constraint coefficients
+        std::vector<int> A_start(num_col);
+        std::vector<int> A_index(num_nz);
+        std::vector<double> A_value(A_ub, A_ub + num_nz);
 
-        if (bounds_lower[i] > bounds_upper[i]) {
-            std::cout << "Invalid bounds detected for column " << i << std::endl;
-            continue;
+        for (int i = 0; i < num_col; ++i) {
+            A_start[i] = i * num_row;
         }
 
-        highs.addCol(c[i], bounds_lower[i], bounds_upper[i], 0, nullptr, nullptr);
-        std::cout << "Column " << i << " added." << std::endl;
-    }
+        // Right-hand side values
+        std::vector<double> row_upper(b_ub, b_ub + num_row);
 
-    // Log and add constraints
-    for (int i = 0; i < dims; ++i) {
-        std::vector<HighsInt> indices;
-        std::vector<double> values;
-        std::cout << "Adding constraint " << i << ": ";
+        // Variable bounds
+        std::vector<double> col_lower(num_col);
+        std::vector<double> col_upper(num_col);
 
-        for (int j = 0; j < dims; ++j) {
-            if (A_ub[i * dims + j] != 0) {
-                indices.push_back(j);
-                values.push_back(A_ub[i * dims + j]);
-                std::cout << "(" << j << ", " << A_ub[i * dims + j] << ") ";
-            }
+        for (int i = 0; i < num_col; ++i) {
+            col_lower[i] = bounds[2 * i];
+            col_upper[i] = bounds[2 * i + 1];
         }
 
-        highs.addRow(-std::numeric_limits<double>::infinity(), b_ub[i], indices.size(), indices.data(), values.data());
-        std::cout << " with bounds [" << -std::numeric_limits<double>::infinity() << ", " << b_ub[i] << "]" << std::endl;
-    }
+        // Add columns and rows to HiGHS
+        highs.addCols(num_col, col_cost.data(), col_lower.data(), col_upper.data(),
+                      0, nullptr, nullptr, nullptr);
+        highs.addRows(num_row, nullptr, row_upper.data(),
+                      num_nz, A_start.data(), A_index.data(), A_value.data());
 
-    std::cout << "Running solver..." << std::endl;
-    HighsStatus status = highs.run();
+        // Run HiGHS
+        highs.run();
 
-    if (status == HighsStatus::kOk) {
-        const auto& solution = highs.getSolution();
-        std::copy(solution.col_value.begin(), solution.col_value.end(), result->x);
+        // Get solution
+        HighsSolution solution = highs.getSolution();
+        HighsModelStatus model_status = highs.getModelStatus();
+
+        // Prepare the result
+        result->x = new double[num_col];
+        for (int i = 0; i < num_col; ++i) {
+            result->x[i] = solution.col_value[i];
+        }
         result->fun = highs.getObjectiveValue();
-        result->success = 1;
-        std::cout << "Solution found with objective: " << result->fun << std::endl;
-    } else {
-        result->success = 0;
-        std::cout << "Failed to find solution, status: " << static_cast<int>(status) << std::endl;
+        result->status = static_cast<int>(model_status);
+        strncpy(result->message, highs.modelStatusToString(model_status).c_str(), 128);
+
+        return result;
     }
 
-    return result;
-}
+    void free_linprog_result(LinprogResult* result) {
+        delete[] result->x;
+        delete result;
+    }
 }
