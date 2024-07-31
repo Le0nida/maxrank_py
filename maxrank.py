@@ -164,12 +164,6 @@ def genhammingstrings(strlen, weight):
         return [np.binary_repr(decmax - decstr[i], width=strlen) for i in range(len(decstr))]
 
 
-def print_array(arr, name):
-    print(f"{name}:")
-    print(arr)
-    print("\n\n")
-
-
 def searchmincells_lp(leaf, hamstrings):
     """
     Mincell search algorithm using linear programming.
@@ -223,31 +217,17 @@ def searchmincells_lp(leaf, hamstrings):
                 A_ub[b, :-1] = leaf.halfspaces[b].coeff
                 b_ub[b] = leaf.halfspaces[b].known
 
-        print("\n\n\n")
-
-        # Print array data before conversion to ctypes
-        print_array(c, "Objective coefficients (c)")
-        print_array(A_ub, "Constraint coefficients (A_ub)")
-        print_array(b_ub, "Constraint bounds (b_ub)")
-        print_array(bounds, "Variable bounds")
-
-        print("\n\n\n")
 
         solution, fun, status, message = linprog_highs(c, A_ub, b_ub, bounds)
-        print("Solution:", solution)
-        print("Objective value:", fun)
-        print("Status:", status)
-        print("Message:", message)
 
-        success = False
-        if success:
+        if "Optimal" in message:
             cell = Cell(
                 None,
                 hamstr,
                 leaf_covered + [leaf.halfspaces[b] for b in range(len(hamstr)) if hamstr[b] == '1'],
                 leaf.halfspaces,
                 leaf.mbr,
-                Point(x[:-1])
+                Point(solution[:-1])
             )
             cells.append(cell)
             break
